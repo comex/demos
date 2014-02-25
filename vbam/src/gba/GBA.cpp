@@ -1534,12 +1534,14 @@ int CPULoadRom(const char *szFile)
 	  }
   }
 
+#if !JS
   u16 *temp = (u16 *)(rom+((romSize+1)&~1));
   int i;
   for(i = (romSize+1)&~1; i < 0x2000000; i+=2) {
     WRITE16LE(temp, (i >> 1) & 0xFFFF);
     temp++;
   }
+#endif
 
   bios = (u8 *)calloc(1,0x4000);
   if(bios == NULL) {

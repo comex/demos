@@ -9,4 +9,5 @@ cmake ../vbam -DENABLE_SDL=ON -DENABLE_GTK=OFF -DENABLE_DEBUGGER=OFF -DENABLE_NL
 make -j8 VERBOSE=1
 ln -f vbam vbam.bc || true
 emcc -O2 -o vbam.js vbam.bc --closure 1 -s EXPORTED_FUNCTIONS="['_vbam_js_init', '_vbam_js_main']"
+cp vbam.js ../
 # -s LEGACY_GL_EMULATION=1

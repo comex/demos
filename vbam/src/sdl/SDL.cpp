@@ -1251,6 +1251,9 @@ void sdlInitVideo() {
 #endif
 
   systemColorDepth = surface->format->BitsPerPixel;
+#if JS
+  systemColorDepth = 32;
+#endif
 
   if(systemColorDepth == 16) {
     srcPitch = srcWidth*2 + 4;
@@ -2176,7 +2179,7 @@ int main(int argc, char **argv)
 
   int op = -1;
 
-  frameSkip = 2;
+  frameSkip = 0;
 #ifdef ENABLE_GB
   gbBorderOn = 0;
 #endif
@@ -2850,7 +2853,11 @@ bool systemPauseOnFrame()
     pauseNextFrame = false;
     return true;
   }
+#if JS
+  return true;
+#else
   return false;
+#endif
 }
 
 void systemGbBorderOn()
