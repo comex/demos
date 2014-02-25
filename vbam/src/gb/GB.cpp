@@ -2879,6 +2879,9 @@ void gbWriteSaveMMM01(const char * name)
 
 bool gbReadSaveMBC1(const char * name)
 {
+#if JS
+  return false;
+#else
   if (gbRam)
   {
     gzFile gzFile = gzopen(name, "rb");
@@ -2919,6 +2922,7 @@ bool gbReadSaveMBC1(const char * name)
   }
   else
     return false;
+#endif
 }
 
 
@@ -2970,6 +2974,9 @@ bool gbReadSaveMBC2(const char * name)
 
 bool gbReadSaveMBC3(const char * name)
 {
+#if JS
+  return false;
+#else
   gzFile gzFile = gzopen(name, "rb");
 
   if(gzFile == NULL) {
@@ -3029,10 +3036,14 @@ bool gbReadSaveMBC3(const char * name)
 
   gzclose(gzFile);
   return res;
+#endif
 }
 
 bool gbReadSaveMBC5(const char * name)
 {
+#if JS
+  return false;
+#else
   if (gbRam)
   {
     gzFile gzFile = gzopen(name, "rb");
@@ -3074,6 +3085,7 @@ bool gbReadSaveMBC5(const char * name)
   }
   else
     return false;
+#endif
 }
 
 bool gbReadSaveMBC7(const char * name)
@@ -3124,6 +3136,9 @@ bool gbReadSaveMBC7(const char * name)
 
 bool gbReadSaveTAMA5(const char * name)
 {
+#if JS
+  return false;
+#else
   gzFile gzFile = gzopen(name, "rb");
 
   if(gzFile == NULL) {
@@ -3186,11 +3201,15 @@ bool gbReadSaveTAMA5(const char * name)
 
   gzclose(gzFile);
   return res;
+#endif
 }
 
 
 bool gbReadSaveMMM01(const char * name)
 {
+#if JS
+  return false;
+#else
   if (gbRam)
   {
     gzFile gzFile = gzopen(name, "rb");
@@ -3231,6 +3250,7 @@ bool gbReadSaveMMM01(const char * name)
   }
   else
     return false;
+#endif
 }
 
 void gbInit()

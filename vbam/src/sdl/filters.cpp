@@ -22,6 +22,8 @@
       // Screen filters
       //
 
+#ifdef ENABLE_FILTERS
+
 extern int Init_2xSaI(u32);
 extern void hq2x_init(unsigned);
 extern bool sdlStretchInit(int colorDepth, int sizeMultiplier, int srcWidth);
@@ -675,4 +677,5 @@ void sdlStretch4x(u8 *srcPtr, u32 srcPitch, u8 * /* deltaPtr */, u8 *dstPtr, u32
       }
 }
 
+#endif // ENABLE_FILTERS
 

@@ -1,7 +1,20 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 #include "common/Types.h"
+#if !JS
 #include <zlib.h>
+#else
+typedef long long z_off_t;
+typedef struct _gzFile {
+  u8 *buffer;
+  bool should_free;
+  z_off_t len;
+  z_off_t off;
+} *gzFile;
+typedef void *voidp;
+typedef long long s64;
+#define SEEK_CUR 1
+#endif
 
 class SoundDriver;
 

@@ -18,6 +18,8 @@
 
 // Parts adapted from VBA-H (VBA for Hackers) by LabMaster
 
+#ifdef BKPT_SUPPORT
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2681,3 +2683,5 @@ printf ("Last registers will be shown\n");
 else
 printf ("Last registers wont be shown\n");
 }
+
+#endif

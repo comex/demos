@@ -29,11 +29,6 @@ if(ENABLE_MMX)
   ADD_DEFINITIONS (-DMMX)
 endif(ENABLE_MMX)
 
-# The SDL port can't be built without debugging support
-if( NOT ENABLE_DEBUGGER AND ENABLE_SDL )
-        message( SEND_ERROR "The SDL port can't be built without debugging support" )
-endif( NOT ENABLE_DEBUGGER AND ENABLE_SDL )
-
 # Set the version number with -DVERSION=X.X.X-uber
 IF( NOT VERSION )
     SET( VERSION "1.8.0-SVN" )
@@ -70,7 +65,7 @@ endif( ENABLE_LINK )
 # set the standard libraries all ports use
 SET(VBAMCORE_LIBS
     vbamcore
-    fex
+    #fex
     ${SDL_LIBRARY}
     ${SFML_LIBRARY}
     ${OPENGL_LIBRARIES}
@@ -228,7 +223,7 @@ SET(SRC_FEX
 SET(SRC_MAIN
     src/Util.cpp
     src/common/Patch.cpp
-    src/common/memgzio.c
+    #src/common/memgzio.c
     src/common/SoundSDL.cpp
 )
 
@@ -387,19 +382,19 @@ IF( ENABLE_FFMPEG )
     )
 ENDIF( ENABLE_FFMPEG )
 
-ADD_LIBRARY(
-    fex
-    ${SRC_FEX}
-)
+#ADD_LIBRARY(
+#    fex
+#   ${SRC_FEX}
+#)
 
 ADD_LIBRARY (
     vbamcore
     ${PROJECT_SRCS}
     ${SRC_MAIN}
     ${SRC_GBA}
-    ${SRC_GB}
+    #${SRC_GB}
     ${SRC_APU}
-    ${SRC_FILTERS}
+    #${SRC_FILTERS}
     ${SRC_DEBUGGER}
 )
 

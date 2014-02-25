@@ -40,7 +40,7 @@ void SoundSDL::read(u16 * stream, int length)
 	if (!_initialized || length <= 0 || !emulating)
 		return;
 
-
+#if !JS
 	/* since this is running in a different thread, speedup and
 	 * throttle can change at any time; save the value so locks
 	 * stay in sync */
@@ -50,12 +50,15 @@ void SoundSDL::read(u16 * stream, int length)
 		SDL_SemWait (_semBufferFull);
 
 	SDL_mutexP(_mutex);
+#endif
 
 	_rbuf.read(stream, std::min(static_cast<std::size_t>(length) / 2, _rbuf.used()));
 
+#if !JS
 	SDL_mutexV(_mutex);
 
 	SDL_SemPost (_semBufferEmpty);
+#endif
 }
 
 void SoundSDL::write(u16 * finalWave, int length)
@@ -63,10 +66,13 @@ void SoundSDL::write(u16 * finalWave, int length)
 	if (!_initialized)
 		return;
 
+#if !JS
+	// XXX
 	if (SDL_GetAudioStatus() != SDL_AUDIO_PLAYING)
 		SDL_PauseAudio(0);
 
 	SDL_mutexP(_mutex);
+#endif
 
 	unsigned int samples = length / 4;
 
@@ -80,6 +86,7 @@ void SoundSDL::write(u16 * finalWave, int length)
 		finalWave += avail * 2;
 		samples -= avail;
 
+#if !JS
 		SDL_mutexV(_mutex);
 		SDL_SemPost(_semBufferFull);
 		if (lock)
@@ -92,11 +99,14 @@ void SoundSDL::write(u16 * finalWave, int length)
 			return;
 		}
 		SDL_mutexP(_mutex);
+#endif
 	}
 
 	_rbuf.write(finalWave, samples * 2);
 
+#if !JS
 	SDL_mutexV(_mutex);
+#endif
 }
 
 
@@ -119,8 +129,10 @@ bool SoundSDL::init(long sampleRate)
 	_rbuf.reset(_delay * sampleRate * 2);
 
 	_mutex          = SDL_CreateMutex();
+#if !JS
 	_semBufferFull  = SDL_CreateSemaphore (0);
 	_semBufferEmpty = SDL_CreateSemaphore (1);
+#endif
 	_initialized    = true;
 
 	return true;
@@ -131,15 +143,19 @@ SoundSDL::~SoundSDL()
 	if (!_initialized)
 		return;
 
+#if !JS
 	SDL_mutexP(_mutex);
+#endif
 	int iSave = emulating;
 	emulating = 0;
+#if !JS
 	SDL_SemPost(_semBufferFull);
 	SDL_SemPost(_semBufferEmpty);
 	SDL_mutexV(_mutex);
 
 	SDL_DestroySemaphore(_semBufferFull);
 	SDL_DestroySemaphore(_semBufferEmpty);
+#endif
 	_semBufferFull  = NULL;
 	_semBufferEmpty = NULL;
 

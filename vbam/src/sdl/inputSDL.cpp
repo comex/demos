@@ -15,6 +15,7 @@
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+#if !JS
 #include "inputSDL.h"
 
 #define SDLBUTTONS_NUM 14
@@ -619,3 +620,4 @@ EPad inputGetDefaultJoypad()
 {
   return sdlDefaultJoypad;
 }
+#endif

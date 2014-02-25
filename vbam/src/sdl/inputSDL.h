@@ -20,6 +20,8 @@
 
 #include <SDL.h>
 
+#if !JS
+
 enum EKey {
     KEY_LEFT,
     KEY_RIGHT,
@@ -137,5 +139,7 @@ void inputSetDefaultJoypad(EPad pad);
  * pad
  */
 EPad inputGetDefaultJoypad();
+
+#endif
 
 #endif // VBAM_SDL_INPUT_H

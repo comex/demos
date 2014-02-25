@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
 
 #ifndef NO_PNG
 extern "C" {
@@ -18,11 +17,16 @@ extern "C" {
 #include "gba/RTC.h"
 #include "common/Port.h"
 
+#if JS
+#include <emscripten/emscripten.h>
+#else
+#include <zlib.h>
 #include "fex/fex.h"
 
 extern "C" {
 #include "common/memgzio.h"
 }
+#endif
 
 #include "gba/gbafilter.h"
 #include "gb/gbGlobals.h"
@@ -39,10 +43,12 @@ extern int systemBlueShift;
 extern u16 systemColorMap16[0x10000];
 extern u32 systemColorMap32[0x10000];
 
+#if !JS
 static int (ZEXPORT *utilGzWriteFunc)(gzFile, const voidp, unsigned int) = NULL;
 static int (ZEXPORT *utilGzReadFunc)(gzFile, voidp, unsigned int) = NULL;
 static int (ZEXPORT *utilGzCloseFunc)(gzFile) = NULL;
 static z_off_t (ZEXPORT *utilGzSeekFunc)(gzFile, z_off_t, int) = NULL;
+#endif
 
 bool utilWritePNGFile(const char *fileName, int w, int h, u8 *pix)
 {
@@ -387,6 +393,7 @@ void utilStripDoubleExtension(const char *file, char *buffer)
   }
 }
 
+#if !JS
 // Opens and scans archive using accept(). Returns fex_t if found.
 // If error or not found, displays message and returns NULL.
 static fex_t* scan_arc(const char *file, bool (*accept)(const char *),
@@ -429,6 +436,7 @@ static fex_t* scan_arc(const char *file, bool (*accept)(const char *),
 	}
 	return fe;
 }
+#endif
 
 static bool utilIsImage(const char *file)
 {
@@ -449,6 +457,7 @@ IMAGE_TYPE utilFindType(const char *file)
 
 IMAGE_TYPE utilFindType(const char *file, char (&buffer)[2048])
 {
+#if !JS
 #ifdef WIN32
 	DWORD dwNum = MultiByteToWideChar (CP_ACP, 0, file, -1, NULL, 0);
 	wchar_t *pwText;
@@ -479,6 +488,7 @@ IMAGE_TYPE utilFindType(const char *file, char (&buffer)[2048])
 		file = buffer;
 //	}
 #endif
+#endif
 	return utilIsGBAImage(file) ? IMAGE_GBA : IMAGE_GB;
 }
 
@@ -495,6 +505,11 @@ u8 *utilLoad(const char *file,
              u8 *data,
              int &size)
 {
+#if JS
+  u8 *result = data;
+  EM_ASM_INT(getExternalFile($0, $1, $2), (int) file, (int) &result, (int) &size);
+  return result;
+#else
 	// find image file
 	char buffer [2048];
 #ifdef WIN32
@@ -552,6 +567,7 @@ u8 *utilLoad(const char *file,
 	size = fileSize;
 
 	return image;
+#endif
 }
 
 void utilWriteInt(gzFile gzFile, int i)
@@ -590,6 +606,62 @@ void utilWriteData(gzFile gzFile, variable_desc *data)
   }
 }
 
+#if JS
+gzFile utilGzOpen(const char *name, const char *mode)
+{
+  int size;
+  u8 *mem = utilLoad(name, NULL, NULL, size);
+  gzFile file = utilMemGzOpen((char *) mem, size, NULL);
+  file->should_free = true;
+  return file;
+}
+
+gzFile utilMemGzOpen(char *memory, int available, const char *mode)
+{
+  gzFile file = new _gzFile;
+  file->buffer = (u8 *) memory;
+  file->should_free = false;
+  file->len = available;
+  file->off = 0;
+  return file;
+}
+
+int utilGzWrite(gzFile file, const voidp buffer, unsigned int len)
+{
+  if(len > file->len - file->off)
+    len = file->len - file->off;
+  memcpy(file->buffer, buffer, len);
+  file->off += len;
+  return len;
+}
+
+int utilGzRead(gzFile file, voidp buffer, unsigned int len)
+{
+  if(len > file->len - file->off)
+    len = file->len - file->off;
+  memcpy(buffer, file->buffer, len);
+  file->off += len;
+  return len;
+}
+
+int utilGzClose(gzFile file)
+{
+  if (file->should_free)
+    free(file->buffer);
+  delete file;
+  return 0;
+}
+
+z_off_t utilGzSeek(gzFile file, z_off_t offset, int whence)
+{
+  return file->off += offset;
+}
+
+long utilGzMemTell(gzFile file)
+{
+  return file->off;
+}
+#else
 gzFile utilGzOpen(const char *file, const char *mode)
 {
   utilGzWriteFunc = (int (ZEXPORT *)(gzFile, void * const, unsigned int))gzwrite;
@@ -634,6 +706,7 @@ long utilGzMemTell(gzFile file)
 {
   return memtell(file);
 }
+#endif
 
 void utilGBAFindSave(const u8 *data, const int size)
 {

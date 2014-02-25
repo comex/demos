@@ -1,8 +1,8 @@
+#if !JS
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
-
 #include "Patch.h"
 
 
@@ -457,3 +457,4 @@ bool applyPatch(const char *patchname, u8 **rom, int *size)
     return patchApplyPPF(patchname, rom, size);
   return false;
 }
+#endif

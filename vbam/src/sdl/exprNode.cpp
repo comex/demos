@@ -29,6 +29,8 @@
 #define strdup _strdup
 #endif
 
+#ifdef BKPT_SUPPORT
+
 extern char *yytext;
 
 #define debuggerReadMemory(addr) \
@@ -413,3 +415,5 @@ void exprNodeArrayPrint(Node *n)
   n->expression->print(n->expression);
   printf("[%d]", n->value);
 }
+
+#endif

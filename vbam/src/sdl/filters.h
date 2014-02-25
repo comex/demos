@@ -21,6 +21,7 @@
 
 #include "../System.h"
 
+#ifdef ENABLE_FILTERS
       //
       // Screen filters
       //
@@ -57,5 +58,6 @@ IFBFilterFunc initIFBFilter(const IFBFilter f, const int colorDepth);
 
 // Get the display name for an IFB filter
 char* getIFBFilterName(const IFBFilter f);
+#endif
 
 #endif // VBA_SDL_FILTERS_H

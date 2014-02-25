@@ -58,6 +58,7 @@
 /* Using locations.  */
 #define YYLSP_NEEDED 0
 
+#ifdef BKPT_SUPPORT
 
 
 /* Tokens.  */
@@ -1643,3 +1644,4 @@ int main(int argc, char **argv)
 }
 #endif
 
+#endif

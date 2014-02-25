@@ -23,12 +23,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <cmath>
+#ifdef ENABLE_OPENGL
 #ifdef __APPLE__
     #include <OpenGL/glu.h>
     #include <OpenGL/glext.h>
 #else
     #include <GL/glu.h>
     #include <GL/glext.h>
+#endif
 #endif
 
 #include <time.h>
@@ -44,13 +46,17 @@
 #include "../gba/Cheats.h"
 #include "../gba/RTC.h"
 #include "../gba/Sound.h"
+#ifdef ENABLE_GB
 #include "../gb/gb.h"
 #include "../gb/gbGlobals.h"
 #include "../gb/gbCheats.h"
 #include "../gb/gbSound.h"
+#endif
 #include "../Util.h"
 
+#ifdef BKPT_SUPPORT
 #include "debugger.h"
+#endif
 #include "filters.h"
 #include "text.h"
 #include "inputSDL.h"
@@ -76,6 +82,10 @@
 #if WITH_LIRC
 #include <sys/poll.h>
 #include <lirc/lirc_client.h>
+#endif
+
+#if JS
+#include <emscripten/emscripten.h>
 #endif
 
 extern void remoteInit();
@@ -123,7 +133,9 @@ int destHeight = 0;
 int desktopWidth = 0;
 int desktopHeight = 0;
 
+#ifdef ENABLE_FILTERS
 Filter filter = kStretch2x;
+#endif
 u8 *delta = NULL;
 
 int filter_enlarge = 2;
@@ -133,10 +145,12 @@ int sdlPrintUsage = 0;
 int cartridgeType = 3;
 int captureFormat = 0;
 
+#ifdef ENABLE_OPENGL
 int openGL = 1;
 int textureSize = 256;
 GLuint screenTexture = 0;
 u8 *filterPix = 0;
+#endif
 
 int pauseWhenInactive = 0;
 int active = 1;
@@ -145,9 +159,11 @@ int RGB_LOW_BITS_MASK=0x821;
 u32 systemColorMap32[0x10000];
 u16 systemColorMap16[0x10000];
 u16 systemGbPalette[24];
+#ifdef ENABLE_FILTERS
 FilterFunc filterFunction = 0;
 IFBFilterFunc ifbFunction = 0;
 IFBFilter ifbType = kIFBNone;
+#endif
 char filename[2048];
 char biosFileName[2048];
 char gbBiosFileName[2048];
@@ -224,9 +240,11 @@ static int        ignore_first_resize_event = 0;
 /* forward */
 void systemConsoleMessage(const char*);
 
+#ifdef BKPT_SUPPORT
 void (*dbgMain)() = debuggerMain;
 void (*dbgSignal)(int,int) = debuggerSignal;
 void (*dbgOutput)(const char *, u32) = debuggerOutput;
+#endif
 
 int  mouseCounter = 0;
 
@@ -250,8 +268,10 @@ struct option sdlOptions[] = {
   { "bios", required_argument, 0, 'b' },
   { "config", required_argument, 0, 'c' },
   { "debug", no_argument, 0, 'd' },
+#ifdef ENABLE_FILTERS
   { "filter", required_argument, 0, 'f' },
   { "ifb-filter", required_argument, 0, 'I' },
+#endif
   { "flash-size", required_argument, 0, 'S' },
   { "flash-64k", no_argument, &sdlFlashSize, 0 },
   { "flash-128k", no_argument, &sdlFlashSize, 1 },
@@ -264,13 +284,17 @@ struct option sdlOptions[] = {
   { "no-auto-frameskip", no_argument, &autoFrameSkip, 0 },
   { "no-debug", no_argument, 0, 'N' },
   { "no-patch", no_argument, &sdlAutoPatch, 0 },
+#ifdef ENABLE_OPENGL
   { "no-opengl", no_argument, &openGL, 0 },
+#endif
   { "no-pause-when-inactive", no_argument, &pauseWhenInactive, 0 },
   { "no-rtc", no_argument, &sdlRtcEnable, 0 },
   { "no-show-speed", no_argument, &showSpeed, 0 },
+#ifdef ENABLE_OPENGL
   { "opengl", required_argument, 0, 'O' },
   { "opengl-nearest", no_argument, &openGL, 1 },
   { "opengl-bilinear", no_argument, &openGL, 2 },
+#endif
   { "pause-when-inactive", no_argument, &pauseWhenInactive, 1 },
   { "profile", optional_argument, 0, 'p' },
   { "rtc", no_argument, &sdlRtcEnable, 1 },
@@ -525,6 +549,7 @@ FILE *sdlFindFile(const char *name)
   return NULL;
 }
 
+#if !JS
 void sdlReadPreferences(FILE *f)
 {
   char buffer[2048];
@@ -668,8 +693,10 @@ void sdlReadPreferences(FILE *f)
       inputSetKeymap(PAD_4, KEY_BUTTON_AUTO_A, sdlFromHex(value));
     } else if(!strcmp(key, "Joy3_AutoB")) {
       inputSetKeymap(PAD_4, KEY_BUTTON_AUTO_B, sdlFromHex(value));
+#ifdef ENABLE_OPENGL
     } else if(!strcmp(key, "openGL")) {
      openGL = sdlFromHex(value);
+#endif
     } else if(!strcmp(key, "Motion_Left")) {
       inputSetMotionKeymap(KEY_LEFT, sdlFromHex(value));
     } else if(!strcmp(key, "Motion_Right")) {
@@ -682,10 +709,12 @@ void sdlReadPreferences(FILE *f)
       frameSkip = sdlFromHex(value);
       if(frameSkip < 0 || frameSkip > 9)
         frameSkip = 2;
+#ifdef ENABLE_GB
     } else if(!strcmp(key, "gbFrameSkip")) {
       gbFrameSkip = sdlFromHex(value);
       if(gbFrameSkip < 0 || gbFrameSkip > 9)
         gbFrameSkip = 0;
+#endif
     } else if(!strcmp(key, "fullScreen")) {
       fullscreen = sdlFromHex(value) ? 1 : 0;
     } else if(!strcmp(key, "useBios")) {
@@ -696,12 +725,15 @@ void sdlReadPreferences(FILE *f)
       strcpy(biosFileName, value);
     } else if(!strcmp(key, "gbBiosFile")) {
       strcpy(gbBiosFileName, value);
+#ifdef ENABLE_FILTERS
     } else if(!strcmp(key, "filter")) {
       filter = (Filter)sdlFromDec(value);
       if(filter < kStretch1x || filter >= kInvalidFilter)
         filter = kStretch2x;
+#endif
     } else if(!strcmp(key, "disableStatus")) {
       disableStatusMessages = sdlFromHex(value) ? true : false;
+#ifdef ENABLE_GB
     } else if(!strcmp(key, "borderOn")) {
       gbBorderOn = sdlFromHex(value) ? true : false;
     } else if(!strcmp(key, "borderAutomatic")) {
@@ -712,6 +744,7 @@ void sdlReadPreferences(FILE *f)
         gbEmulatorType = 1;
     } else if(!strcmp(key, "colorOption")) {
       gbColorOption = sdlFromHex(value) ? true : false;
+#endif
     } else if(!strcmp(key, "captureDir")) {
       sdlCheckDirectory(value);
       strcpy(captureDir, value);
@@ -740,6 +773,7 @@ void sdlReadPreferences(FILE *f)
     } else if(!strcmp(key, "soundEnable")) {
       int res = sdlFromHex(value) & 0x30f;
       soundSetEnable(res);
+#ifdef ENABLE_GB
     } else if(!strcmp(key, "soundStereo")) {
       if (sdlFromHex(value)) {
         gb_effects_config.stereo = SDL_SOUND_STEREO;
@@ -757,6 +791,7 @@ void sdlReadPreferences(FILE *f)
       }
     } else if(!strcmp(key, "declicking")) {
       gbSoundSetDeclicking(sdlFromHex(value) != 0);
+#endif
     } else if(!strcmp(key, "soundVolume")) {
       float volume = sdlFromDec(value) / 100.0;
       if (volume < 0.0 || volume > SDL_SOUND_MAX_VOLUME)
@@ -770,10 +805,12 @@ void sdlReadPreferences(FILE *f)
       sdlFlashSize = sdlFromHex(value);
       if(sdlFlashSize != 0 && sdlFlashSize != 1)
         sdlFlashSize = 0;
+#ifdef ENABLE_FILTERS
     } else if(!strcmp(key, "ifbType")) {
       ifbType = (IFBFilter)sdlFromHex(value);
      if(ifbType < kIFBNone || ifbType >= kInvalidIFBFilter)
         ifbType = kIFBNone;
+#endif
     } else if(!strcmp(key, "showSpeed")) {
       showSpeed = sdlFromHex(value);
       if(showSpeed < 0 || showSpeed > 2)
@@ -795,8 +832,10 @@ void sdlReadPreferences(FILE *f)
       rewindTimer *= 6;  // convert value to 10 frames multiple
     } else if(!strcmp(key, "saveKeysSwitch")) {
       sdlSaveKeysSwitch = sdlFromHex(value);
+#ifdef ENABLE_OPENGL
     } else if(!strcmp(key, "openGLscale")) {
       sdlOpenglScale = sdlFromHex(value);
+#endif
     } else if(!strcmp(key, "autoFireMaxCount")) {
       autoFireMaxCount = sdlFromDec(value);
       if(autoFireMaxCount < 1)
@@ -806,7 +845,9 @@ void sdlReadPreferences(FILE *f)
     }
   }
 }
+#endif
 
+#ifdef ENABLE_OPENGL
 void sdlOpenGLInit(int w, int h)
 {
   float screenAspect = (float) srcWidth / srcHeight,
@@ -861,7 +902,9 @@ void sdlOpenGLInit(int w, int h)
   glClearColor(0.0,0.0,0.0,1.0);
   glClear( GL_COLOR_BUFFER_BIT );
 }
+#endif
 
+#if !JS
 void sdlReadPreferences()
 {
   FILE *f = sdlFindFile("vbam.cfg");
@@ -876,6 +919,7 @@ void sdlReadPreferences()
 
   fclose(f);
 }
+#endif
 
 static void sdlApplyPerImagePreferences()
 {
@@ -1134,22 +1178,32 @@ void sdlInitVideo() {
   int screenWidth;
   int screenHeight;
 
+#ifdef ENABLE_FILTERS
   filter_enlarge = getFilterEnlargeFactor(filter);
 
   destWidth = filter_enlarge * srcWidth;
   destHeight = filter_enlarge * srcHeight;
+#else
+  destWidth = srcWidth;
+  destHeight = srcHeight;
+#endif
 
   flags = SDL_ANYFORMAT | (fullscreen ? SDL_FULLSCREEN : 0);
+#ifdef ENABLE_OPENGL
   if(openGL) {
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     flags |= SDL_OPENGL | SDL_RESIZABLE;
   } else
+#endif
     flags |= SDL_HWSURFACE | SDL_DOUBLEBUF;
 
+#ifdef ENABLE_OPENGL
   if (fullscreen && openGL) {
     screenWidth = desktopWidth;
     screenHeight = desktopHeight;
-  } else {
+  } else
+#endif
+  {
     screenWidth = destWidth;
     screenHeight = destHeight;
   }
@@ -1164,6 +1218,7 @@ void sdlInitVideo() {
 
   u32 rmask, gmask, bmask;
   
+#ifdef ENABLE_OPENGL
   if(openGL) {
     #if SDL_BYTEORDER == SDL_LIL_ENDIAN /* OpenGL RGBA masks */
       rmask = 0x000000FF;
@@ -1174,7 +1229,9 @@ void sdlInitVideo() {
       gmask = 0x00FF0000; 
       bmask = 0x0000FF00; 
     #endif
-  } else {
+  } else
+#endif
+  {
       rmask = surface->format->Rmask;
       gmask = surface->format->Gmask;
       bmask = surface->format->Bmask;
@@ -1184,12 +1241,14 @@ void sdlInitVideo() {
   systemGreenShift = sdlCalculateShift(gmask);
   systemBlueShift = sdlCalculateShift(bmask);
   
+#ifdef ENABLE_OPENGL
   if(openGL) {
       // Align to BGRA instead of ABGR
       systemRedShift += 8;
       systemGreenShift += 8;
       systemBlueShift += 8;
   }
+#endif
 
   systemColorDepth = surface->format->BitsPerPixel;
 
@@ -1202,12 +1261,16 @@ void sdlInitVideo() {
       srcPitch = srcWidth*3;
   }
 
+#ifdef ENABLE_OPENGL
   if(openGL) {
     int scaledWidth = screenWidth * sdlOpenglScale;
     int scaledHeight = screenHeight * sdlOpenglScale;
 
     free(filterPix);
     filterPix = (u8 *)calloc(1, (systemColorDepth >> 3) * destWidth * destHeight);
+#ifndef ENABLE_FILTERS
+    pix = filterPix;
+#endif
     sdlOpenGLInit(screenWidth, screenHeight);
 
     if (	(!fullscreen)
@@ -1225,6 +1288,7 @@ void sdlInitVideo() {
 	ignore_first_resize_event	= 1;
     }
   }
+#endif
 
 }
 
@@ -1372,6 +1436,7 @@ void sdlPollEvents()
 	      ignore_first_resize_event	= 0;
 	      break;
       }
+#ifdef ENABLE_OPENGL
       if (openGL)
       {
         SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
@@ -1379,7 +1444,9 @@ void sdlPollEvents()
                        (fullscreen ? SDL_FULLSCREEN : 0));
         sdlOpenGLInit(event.resize.w, event.resize.h);
       }
+#endif
       break;
+#if !JS
     case SDL_ACTIVEEVENT:
       if(pauseWhenInactive && (event.active.state & SDL_APPINPUTFOCUS)) {
         active = event.active.gain;
@@ -1479,6 +1546,7 @@ void sdlPollEvents()
       case SDLK_KP_MULTIPLY:
         sdlChangeVolume(0.1);
         break;
+#ifdef ENABLE_GB
       case SDLK_KP_MINUS:
         if (gb_effects_config.stereo > 0.0) {
           gb_effects_config.stereo = 0.0;
@@ -1518,6 +1586,7 @@ void sdlPollEvents()
           systemScreenMessage("Surround on");
         }
         break;
+#endif
 
       case SDLK_p:
         if(!(event.key.keysym.mod & MOD_NOCTRL) &&
@@ -1539,6 +1608,7 @@ void sdlPollEvents()
           sdlInitVideo();
         }
         break;
+#ifdef ENABLE_FILTERS
       case SDLK_g:
         if(!(event.key.keysym.mod & MOD_NOCTRL) &&
            (event.key.keysym.mod & KMOD_CTRL)) {
@@ -1553,6 +1623,8 @@ void sdlPollEvents()
 		      systemScreenMessage(getFilterName(filter));
         }
         break;
+#endif
+#ifdef BKPT_SUPPORT
       case SDLK_F11:
         if(dbgMain != debuggerMain) {
           if(armState) {
@@ -1565,6 +1637,7 @@ void sdlPollEvents()
         }
         debugger = true;
         break;
+#endif
       case SDLK_F1:
       case SDLK_F2:
       case SDLK_F3:
@@ -1659,6 +1732,7 @@ void sdlPollEvents()
       }
       inputProcessSDLEvent(event);
       break;
+#endif // JS
     }
   }
 }
@@ -1776,8 +1850,10 @@ Options:\n\
                                 pipe     - use pipe transport\n\
   -I, --ifb-filter=FILTER      Select interframe blending filter:\n\
 ");
+#ifdef ENABLE_FILTERS
   for (int i  = 0; i < (int)kInvalidIFBFilter; i++)
 	  printf("                                %d - %s\n", i, getIFBFilterName((IFBFilter)i));
+#endif
   printf("\
   -N, --no-debug               Don't parse debug information\n\
   -S, --flash-size=SIZE        Set the Flash size\n\
@@ -1789,8 +1865,10 @@ Options:\n\
   -d, --debug                  Enter debugger\n\
   -f, --filter=FILTER          Select filter:\n\
 ");
+#ifdef ENABLE_FILTERS
   for (int i  = 0; i < (int)kInvalidFilter; i++)
 	  printf("                                %d - %s\n", i, getFilterName((Filter)i));
+#endif
   printf("\
   -h, --help                   Print this help\n\
   -i, --patch=PATCH            Apply given patch\n\
@@ -1872,6 +1950,220 @@ void handleRewinds()
 	}
 }
 
+static void common_init(char *szFile) {
+  if (szFile != NULL) {
+    soundInit();
+
+    bool failed = false;
+
+    IMAGE_TYPE type = utilFindType(szFile);
+
+    if(type == IMAGE_UNKNOWN) {
+      systemMessage(0, "Unknown file type %s", szFile);
+      exit(-1);
+    }
+    cartridgeType = (int)type;
+
+#ifdef ENABLE_GB
+    if(type == IMAGE_GB) {
+      failed = !gbLoadRom(szFile);
+      if(!failed) {
+        gbGetHardwareType();
+
+        // used for the handling of the gb Boot Rom
+        if (gbHardware & 5)
+          gbCPUInit(gbBiosFileName, useBios);
+
+        cartridgeType = IMAGE_GB;
+        emulator = GBSystem;
+        int size = gbRomSize, patchnum;
+#if !JS
+        for (patchnum = 0; patchnum < sdl_patch_num; patchnum++) {
+          fprintf(stdout, "Trying patch %s%s\n", sdl_patch_names[patchnum],
+            applyPatch(sdl_patch_names[patchnum], &gbRom, &size) ? " [success]" : "");
+        }
+#endif
+        if(size != gbRomSize) {
+          extern bool gbUpdateSizes();
+          gbUpdateSizes();
+          gbReset();
+        }
+        gbReset();
+      }
+    } else
+#endif
+    if(type == IMAGE_GBA) {
+      int size = CPULoadRom(szFile);
+      failed = (size == 0);
+      if(!failed) {
+        sdlApplyPerImagePreferences();
+
+        doMirroring(mirroringEnable);
+
+        cartridgeType = 0;
+        emulator = GBASystem;
+
+        CPUInit(biosFileName, useBios);
+#if !JS
+        int patchnum;
+        for (patchnum = 0; patchnum < sdl_patch_num; patchnum++) {
+          fprintf(stdout, "Trying patch %s%s\n", sdl_patch_names[patchnum],
+            applyPatch(sdl_patch_names[patchnum], &rom, &size) ? " [success]" : "");
+        }
+#endif
+        CPUReset();
+      }
+    }
+
+    if(failed) {
+      systemMessage(0, "Failed to load file %s", szFile);
+      exit(-1);
+    }
+  } else {
+    soundInit();
+    cartridgeType = 0;
+    strcpy(filename, "gnu_stub");
+    rom = (u8 *)malloc(0x2000000);
+    workRAM = (u8 *)calloc(1, 0x40000);
+    bios = (u8 *)calloc(1,0x4000);
+    internalRAM = (u8 *)calloc(1,0x8000);
+    paletteRAM = (u8 *)calloc(1,0x400);
+    vram = (u8 *)calloc(1, 0x20000);
+    oam = (u8 *)calloc(1, 0x400);
+    pix = (u8 *)calloc(1, 4 * 241 * 162);
+    ioMem = (u8 *)calloc(1, 0x400);
+
+    emulator = GBASystem;
+
+    CPUInit(biosFileName, useBios);
+    CPUReset();
+  }
+
+#ifdef ENABLE_FILTERS
+  // XXX opengl
+  pix = (u8 *)surface->pixels;
+#endif
+
+  sdlReadBattery();
+
+#ifdef BKPT_SUPPORT
+  if(debuggerStub)
+    remoteInit();
+#endif
+
+  int flags = SDL_INIT_VIDEO|SDL_INIT_AUDIO|
+    SDL_INIT_TIMER|SDL_INIT_NOPARACHUTE;
+
+  if(SDL_Init(flags)) {
+    systemMessage(0, "Failed to init SDL: %s", SDL_GetError());
+    exit(-1);
+  }
+
+  if(SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
+    systemMessage(0, "Failed to init joystick support: %s", SDL_GetError());
+  }
+
+#if WITH_LIRC
+  StartLirc();
+#endif
+#if !JS
+  inputInitJoysticks();
+#endif
+
+  if(cartridgeType == 0) {
+    srcWidth = 240;
+    srcHeight = 160;
+    systemFrameSkip = frameSkip;
+#ifdef ENABLE_GB
+  } else if (cartridgeType == 1) {
+    if(gbBorderOn) {
+      srcWidth = 256;
+      srcHeight = 224;
+      gbBorderLineSkip = 256;
+      gbBorderColumnSkip = 48;
+      gbBorderRowSkip = 40;
+    } else {
+      srcWidth = 160;
+      srcHeight = 144;
+      gbBorderLineSkip = 160;
+      gbBorderColumnSkip = 0;
+      gbBorderRowSkip = 0;
+    }
+    systemFrameSkip = gbFrameSkip;
+#endif
+  } else {
+    srcWidth = 320;
+    srcHeight = 240;
+  }
+
+  sdlReadDesktopVideoMode();
+
+  sdlInitVideo();
+
+#ifdef ENABLE_FILTERS
+  filterFunction = initFilter(filter, systemColorDepth, srcWidth);
+  if (!filterFunction) {
+    fprintf(stderr,"Unable to init filter '%s'\n", getFilterName(filter));
+    exit(-1);
+  }
+#endif
+
+  if(systemColorDepth == 15)
+    systemColorDepth = 16;
+
+  if(systemColorDepth != 16 && systemColorDepth != 24 &&
+     systemColorDepth != 32) {
+    fprintf(stderr,"Unsupported color depth '%d'.\nOnly 16, 24 and 32 bit color depths are supported\n", systemColorDepth);
+    exit(-1);
+  }
+
+  fprintf(stdout,"Color depth: %d\n", systemColorDepth);
+
+  utilUpdateSystemColorMaps();
+
+  if(delta == NULL) {
+    delta = (u8*)malloc(322*242*4);
+    memset(delta, 255, 322*242*4);
+  }
+
+#ifdef ENABLE_FILTERS
+  ifbFunction = initIFBFilter(ifbType, systemColorDepth);
+#endif
+
+  emulating = 1;
+  renderedFrames = 0;
+
+  autoFrameSkipLastTime = throttleLastTime = systemGetClock();
+
+  SDL_WM_SetCaption("VBA-M", NULL);
+
+  // now we can enable cheats?
+  {
+	int i;
+	for (i=0; i<sdlPreparedCheats; i++) {
+		const char *	p;
+		int	l;
+		p	= sdlPreparedCheatCodes[i];
+		l	= strlen(p);
+		if (l == 17 && p[8] == ':') {
+			fprintf(stdout,"Adding cheat code %s\n", p);
+			cheatsAddCheatCode(p, p);
+		} else if (l == 13 && p[8] == ' ') {
+			fprintf(stdout,"Adding CBA cheat code %s\n", p);
+			cheatsAddCBACode(p, p);
+#ifdef ENABLE_GB
+		} else if (l == 8) {
+			fprintf(stdout,"Adding GB(GS) cheat code %s\n", p);
+			gbAddGsCheat(p, p);
+#endif
+		} else {
+			fprintf(stderr,"Unknown format for cheat code %s\n", p);
+		}
+	}
+  }
+}
+
+#if !JS
 int main(int argc, char **argv)
 {
   fprintf(stdout, "VBA-M version %s [SDL]\n", VERSION);
@@ -1885,14 +2177,18 @@ int main(int argc, char **argv)
   int op = -1;
 
   frameSkip = 2;
+#ifdef ENABLE_GB
   gbBorderOn = 0;
+#endif
 
   parseDebug = true;
 
+#ifdef ENABLE_GB
   gb_effects_config.stereo = 0.0;
   gb_effects_config.echo = 0.0;
   gb_effects_config.surround = false;
   gb_effects_config.enabled = false;
+#endif
 
   char buf[1024];
   struct stat s;
@@ -1982,6 +2278,7 @@ int main(int argc, char **argv)
         sdl_patch_num++;
       }
       break;
+#ifdef BKPT_SUPPORT
    case 'G':
       dbgMain = remoteStubMain;
       dbgSignal = remoteStubSignal;
@@ -2007,6 +2304,7 @@ int main(int argc, char **argv)
         remoteSetProtocol(0);
       }
       break;
+#endif
     case 'N':
       parseDebug = false;
       break;
@@ -2021,6 +2319,7 @@ int main(int argc, char **argv)
       fullscreen = 1;
       mouseCounter = 120;
       break;
+#ifdef ENABLE_FILTERS
     case 'f':
       if(optarg) {
         filter = (Filter)atoi(optarg);
@@ -2035,6 +2334,7 @@ int main(int argc, char **argv)
         ifbType = kIFBNone;
       }
       break;
+#endif
     case 'p':
 #ifdef PROFILING
       if(optarg) {
@@ -2052,12 +2352,16 @@ int main(int argc, char **argv)
       if(optarg) {
         int a = atoi(optarg);
         if(a >= 0 && a <= 9) {
+#ifdef ENABLE_GB
           gbFrameSkip = a;
+#endif
           frameSkip = a;
         }
       } else {
         frameSkip = 2;
+#ifdef ENABLE_GB
         gbFrameSkip = 0;
+#endif
       }
       break;
     case 't':
@@ -2077,6 +2381,7 @@ int main(int argc, char **argv)
     case '?':
       sdlPrintUsage = 1;
       break;
+#ifdef ENABLE_OPENGL
     case 'O':
       if(optarg) {
        openGL = atoi(optarg);
@@ -2085,6 +2390,7 @@ int main(int argc, char **argv)
      } else
         openGL = 0;
     break;
+#endif
 
     }
   }
@@ -2124,8 +2430,9 @@ int main(int argc, char **argv)
 
   systemSaveUpdateCounter = SYSTEM_SAVE_NOT_UPDATED;
 
+  char *szFile = NULL;
   if(optind < argc) {
-    char *szFile = argv[optind];
+    szFile = argv[optind];
     u32 len = strlen(szFile);
     if (len > SYSMSG_BUFFER_SIZE)
     {
@@ -2161,198 +2468,17 @@ int main(int argc, char **argv)
       sdl_patch_num++;
     }
 
-    soundInit();
-
-    bool failed = false;
-
-    IMAGE_TYPE type = utilFindType(szFile);
-
-    if(type == IMAGE_UNKNOWN) {
-      systemMessage(0, "Unknown file type %s", szFile);
-      exit(-1);
-    }
-    cartridgeType = (int)type;
-
-    if(type == IMAGE_GB) {
-      failed = !gbLoadRom(szFile);
-      if(!failed) {
-        gbGetHardwareType();
-
-        // used for the handling of the gb Boot Rom
-        if (gbHardware & 5)
-          gbCPUInit(gbBiosFileName, useBios);
-
-        cartridgeType = IMAGE_GB;
-        emulator = GBSystem;
-        int size = gbRomSize, patchnum;
-        for (patchnum = 0; patchnum < sdl_patch_num; patchnum++) {
-          fprintf(stdout, "Trying patch %s%s\n", sdl_patch_names[patchnum],
-            applyPatch(sdl_patch_names[patchnum], &gbRom, &size) ? " [success]" : "");
-        }
-        if(size != gbRomSize) {
-          extern bool gbUpdateSizes();
-          gbUpdateSizes();
-          gbReset();
-        }
-        gbReset();
-      }
-    } else if(type == IMAGE_GBA) {
-      int size = CPULoadRom(szFile);
-      failed = (size == 0);
-      if(!failed) {
-        sdlApplyPerImagePreferences();
-
-        doMirroring(mirroringEnable);
-
-        cartridgeType = 0;
-        emulator = GBASystem;
-
-        CPUInit(biosFileName, useBios);
-        int patchnum;
-        for (patchnum = 0; patchnum < sdl_patch_num; patchnum++) {
-          fprintf(stdout, "Trying patch %s%s\n", sdl_patch_names[patchnum],
-            applyPatch(sdl_patch_names[patchnum], &rom, &size) ? " [success]" : "");
-        }
-        CPUReset();
-      }
-    }
-
-    if(failed) {
-      systemMessage(0, "Failed to load file %s", szFile);
-      exit(-1);
-    }
-  } else {
-    soundInit();
-    cartridgeType = 0;
-    strcpy(filename, "gnu_stub");
-    rom = (u8 *)malloc(0x2000000);
-    workRAM = (u8 *)calloc(1, 0x40000);
-    bios = (u8 *)calloc(1,0x4000);
-    internalRAM = (u8 *)calloc(1,0x8000);
-    paletteRAM = (u8 *)calloc(1,0x400);
-    vram = (u8 *)calloc(1, 0x20000);
-    oam = (u8 *)calloc(1, 0x400);
-    pix = (u8 *)calloc(1, 4 * 241 * 162);
-    ioMem = (u8 *)calloc(1, 0x400);
-
-    emulator = GBASystem;
-
-    CPUInit(biosFileName, useBios);
-    CPUReset();
   }
-
-  sdlReadBattery();
-
-  if(debuggerStub)
-    remoteInit();
-
-  int flags = SDL_INIT_VIDEO|SDL_INIT_AUDIO|
-    SDL_INIT_TIMER|SDL_INIT_NOPARACHUTE;
-
-  if(SDL_Init(flags)) {
-    systemMessage(0, "Failed to init SDL: %s", SDL_GetError());
-    exit(-1);
-  }
-
-  if(SDL_InitSubSystem(SDL_INIT_JOYSTICK)) {
-    systemMessage(0, "Failed to init joystick support: %s", SDL_GetError());
-  }
-
-#if WITH_LIRC
-  StartLirc();
-#endif
-  inputInitJoysticks();
-
-  if(cartridgeType == 0) {
-    srcWidth = 240;
-    srcHeight = 160;
-    systemFrameSkip = frameSkip;
-  } else if (cartridgeType == 1) {
-    if(gbBorderOn) {
-      srcWidth = 256;
-      srcHeight = 224;
-      gbBorderLineSkip = 256;
-      gbBorderColumnSkip = 48;
-      gbBorderRowSkip = 40;
-    } else {
-      srcWidth = 160;
-      srcHeight = 144;
-      gbBorderLineSkip = 160;
-      gbBorderColumnSkip = 0;
-      gbBorderRowSkip = 0;
-    }
-    systemFrameSkip = gbFrameSkip;
-  } else {
-    srcWidth = 320;
-    srcHeight = 240;
-  }
-
-  sdlReadDesktopVideoMode();
-
-  sdlInitVideo();
-
-  filterFunction = initFilter(filter, systemColorDepth, srcWidth);
-  if (!filterFunction) {
-    fprintf(stderr,"Unable to init filter '%s'\n", getFilterName(filter));
-    exit(-1);
-  }
-
-  if(systemColorDepth == 15)
-    systemColorDepth = 16;
-
-  if(systemColorDepth != 16 && systemColorDepth != 24 &&
-     systemColorDepth != 32) {
-    fprintf(stderr,"Unsupported color depth '%d'.\nOnly 16, 24 and 32 bit color depths are supported\n", systemColorDepth);
-    exit(-1);
-  }
-
-  fprintf(stdout,"Color depth: %d\n", systemColorDepth);
-
-  utilUpdateSystemColorMaps();
-
-  if(delta == NULL) {
-    delta = (u8*)malloc(322*242*4);
-    memset(delta, 255, 322*242*4);
-  }
-
-  ifbFunction = initIFBFilter(ifbType, systemColorDepth);
-
-  emulating = 1;
-  renderedFrames = 0;
-
-  autoFrameSkipLastTime = throttleLastTime = systemGetClock();
-
-  SDL_WM_SetCaption("VBA-M", NULL);
-
-  // now we can enable cheats?
-  {
-	int i;
-	for (i=0; i<sdlPreparedCheats; i++) {
-		const char *	p;
-		int	l;
-		p	= sdlPreparedCheatCodes[i];
-		l	= strlen(p);
-		if (l == 17 && p[8] == ':') {
-			fprintf(stdout,"Adding cheat code %s\n", p);
-			cheatsAddCheatCode(p, p);
-		} else if (l == 13 && p[8] == ' ') {
-			fprintf(stdout,"Adding CBA cheat code %s\n", p);
-			cheatsAddCBACode(p, p);
-		} else if (l == 8) {
-			fprintf(stdout,"Adding GB(GS) cheat code %s\n", p);
-			gbAddGsCheat(p, p);
-		} else {
-			fprintf(stderr,"Unknown format for cheat code %s\n", p);
-		}
-	}
-  }
-
+  common_init(szFile);
 
   while(emulating) {
     if(!paused && active) {
+#ifdef BKPT_SUPPORT
       if(debugger && emulator.emuHasDebugger)
         dbgMain();
-      else {
+      else
+#endif
+      {
         emulator.emuMain(emulator.emuCount);
         if(rewindSaveNeeded && rewindMemory && emulator.emuWriteMemState) {
 		handleRewinds();
@@ -2376,10 +2502,16 @@ int main(int argc, char **argv)
 
   emulating = 0;
   fprintf(stdout,"Shutting down\n");
+#ifdef BKPT_SUPPORT
   remoteCleanUp();
+#endif
   soundShutdown();
 
-  if(gbRom != NULL || rom != NULL) {
+  if(
+#ifdef ENABLE_GB
+    gbRom != NULL ||
+#endif
+    rom != NULL) {
     sdlWriteBattery();
     emulator.emuCleanUp();
   }
@@ -2389,10 +2521,12 @@ int main(int argc, char **argv)
     delta = NULL;
   }
 
+#ifdef ENABLE_FILTERS
   if(filterPix) {
     free(filterPix);
     filterPix = NULL;
  }
+#endif
 
   for (int i = 0; i < sdl_patch_num; i++) {
     free(sdl_patch_names[i]);
@@ -2405,8 +2539,40 @@ int main(int argc, char **argv)
   SDL_Quit();
   return 0;
 }
+#endif // !JS
 
+#if JS
+extern "C" {
+extern void vbam_js_init(char *szFile);
+extern void vbam_js_main();
+}
+EMSCRIPTEN_KEEPALIVE
+void vbam_js_init(char *szFile) {
+  captureDir[0] = 0;
+  saveDir[0] = 0;
+  batteryDir[0] = 0;
+  frameSkip = 2;
+#ifdef ENABLE_GB
+  gbBorderOn = 0;
+#endif
+  flashSetSize(0x10000);
 
+  for(int i = 0; i < 24;) {
+    systemGbPalette[i++] = (0x1f) | (0x1f << 5) | (0x1f << 10);
+    systemGbPalette[i++] = (0x15) | (0x15 << 5) | (0x15 << 10);
+    systemGbPalette[i++] = (0x0c) | (0x0c << 5) | (0x0c << 10);
+    systemGbPalette[i++] = 0;
+  }
+  systemSaveUpdateCounter = SYSTEM_SAVE_NOT_UPDATED;
+
+  common_init(szFile);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void vbam_js_main() {
+  emulator.emuMain(emulator.emuCount);
+}
+#endif
 
 
 #ifdef __WIN32__
@@ -2433,9 +2599,11 @@ void systemMessage(int num, const char *msg, ...)
 void drawScreenMessage(u8 *screen, int pitch, int x, int y, unsigned int duration)
 {
   if(screenMessage) {
+#ifdef ENABLE_GB
     if(cartridgeType == 1 && gbBorderOn) {
       gbSgbRenderBorder();
     }
+#endif
     if(((systemGetClock() - screenMessageTime) < duration) &&
        !disableStatusMessages) {
       drawText(screen, pitch, x, y,
@@ -2466,24 +2634,30 @@ void systemDrawScreen()
 
   renderedFrames++;
 
+#ifdef ENABLE_OPENGL
   if (openGL)
     screen = filterPix;
-  else {
+  else
+#endif
+  {
     screen = (u8*)surface->pixels;
     SDL_LockSurface(surface);
   }
 
+#ifdef ENABLE_FILTERS
   if (ifbFunction)
     ifbFunction(pix + srcPitch, srcPitch, srcWidth, srcHeight);
 
   filterFunction(pix + srcPitch, srcPitch, delta, screen,
                  destPitch, srcWidth, srcHeight);
+#endif
 
   drawScreenMessage(screen, destPitch, 10, destHeight - 20, 3000);
 
   if (showSpeed && fullscreen)
     drawSpeed(screen, destPitch, 10, 20);
 
+#ifdef ENABLE_OPENGL
   if (openGL) {
     glClear( GL_COLOR_BUFFER_BIT );
     glPixelStorei(GL_UNPACK_ROW_LENGTH, destWidth);
@@ -2507,7 +2681,9 @@ void systemDrawScreen()
     glEnd();
 
     SDL_GL_SwapBuffers();
-  } else {
+  } else
+#endif
+  {
     SDL_UnlockSurface(surface);
     SDL_Flip(surface);
   }
@@ -2681,13 +2857,17 @@ void systemGbBorderOn()
 {
   srcWidth = 256;
   srcHeight = 224;
+#ifdef ENABLE_GB
   gbBorderLineSkip = 256;
   gbBorderColumnSkip = 48;
   gbBorderRowSkip = 40;
+#endif
 
   sdlInitVideo();
 
+#ifdef ENABLE_FILTERS
   filterFunction = initFilter(filter, systemColorDepth, srcWidth);
+#endif
 }
 
 bool systemReadJoypads()
@@ -2697,22 +2877,36 @@ bool systemReadJoypads()
 
 u32 systemReadJoypad(int which)
 {
+#if JS
+  return EM_ASM_INT(readJoypad($0), which);
+#else
   return inputReadJoypad(which);
+#endif
 }
 
 void systemUpdateMotionSensor()
 {
+#if !JS
   inputUpdateMotionSensor();
+#endif
 }
 
 int systemGetSensorX()
 {
+#if !JS
   return inputGetSensorX();
+#else
+  return 0;
+#endif
 }
 
 int systemGetSensorY()
 {
+#if !JS
   return inputGetSensorY();
+#else
+  return 0;
+#endif
 }
 
 SoundDriver * systemSoundInit()
