@@ -1,0 +1,71 @@
+<style>
+  .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+  canvas.emscripten { border: 0px none; }
+</style>
+<canvas class="emscripten" id="canvas"></canvas>
+<script type='text/javascript'>
+var romData = null;
+var vbamReady = false;
+
+function renderFrame() {
+    vbam_js_main();
+    requestAnimationFrame(renderFrame);
+}
+
+function loadingStep() {
+    if(!(romData && vbamReady))
+        return;
+    vbam_js_init('rom.gba');
+    renderFrame();
+}
+
+function loadRom(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.responseType = 'arraybuffer';
+
+    xhr.onload = function() { callback(xhr.response) };
+    xhr.send();
+}
+
+loadRom('rom.gba', function(buf) {
+    romData = buf;
+    loadingStep();
+});
+
+function readJoypad(which) {
+    return 0;
+}
+
+function getExternalFile(file, resultPtr, sizePtr) {
+    var fn = Module.Pointer_stringify(file);
+    console.log(fn);
+    var size = romData.byteLength;
+    var buf = Module._malloc(size);
+    Module.HEAPU8.set(romData, buf);
+    Module.HEAPU32[resultPtr/4] = buf;
+    Module.HEAPU32[sizePtr/4] = size;
+}
+function ready() {
+    vbam_js_init = Module.cwrap('vbam_js_init', 'void', ['string']);
+    vbam_js_main = Module.cwrap('vbam_js_main', 'void', []);
+    vbamReady = true;
+    loadingStep();
+}
+var Module = {
+    preRun: [],
+    postRun: [ready],
+    print: function(text) {
+        console.log(text);
+    },
+    printErr: function(text) {
+        console.log(text);
+    },
+    canvas: document.getElementById('canvas'),
+    setStatus: function(text) {
+        console.log(text);
+    },
+    TOTAL_MEMORY: 64*1024*1024,
+};
+</script>
+<script async type="text/javascript" src="vbam.js"></script>
