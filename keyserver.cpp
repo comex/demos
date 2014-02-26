@@ -5,8 +5,19 @@
 #include <random>
 #include <future>
 #include <mutex>
+#include <stdlib.h>
 
-#define NO_VOTE 0xffffffff
+#define USE_EPOLL !__APPLE__
+
+#if USE_EPOLL
+#include <sys/epoll.h>
+#endif
+
+#include <libwebsockets.h>
+#define CMAKE_BUILD
+#include <private-libwebsockets.h> // derp
+
+#define NO_VOTE 0xffff
 #define UNVOTE_DELAY (60*5)
 #define BATCH_SIZE 10
 #define WORKERS 4
@@ -26,20 +37,20 @@ struct queued_event {
 	uint64_t pid;
 };
 
-__attribute__((packed))
 struct popularity_packet {
 	uint16_t vote;
 	uint32_t popularity;
-};
+} __attribute__((packed));
 
-__attribute__((packed))
 struct batch_packet {
 	uint8_t type;
 	uint64_t frame;
 	uint8_t num_inputs;
 	uint16_t inputs[BATCH_SIZE];
 	popularity_packet popcnt_data[0];
-};
+} __attribute__((packed));
+
+static libwebsocket_context *g_lws_ctx;
 
 static std::default_random_engine g_rand;
 
@@ -50,6 +61,7 @@ static uint64_t g_frame;
 static std::unordered_map<uint16_t, size_t> g_popularity;
 
 static std::vector<player_data> g_players;
+static size_t g_num_players;
 static std::mutex g_conn_mtx;
 
 // oh, why not
@@ -61,9 +73,15 @@ static std::deque<queued_event> g_events;
 static uint16_t g_current_batch[BATCH_SIZE];
 static int g_current_batch_idx;
 
-static void init() {
-	g_rand = std::default_random_engine(std::random_device()());
+#if USE_EPOLL
+static int g_epoll_fd;
+#endif
+
+
+static void disconnect_player(player_data *pl) {
+	close(pl->fd);
 }
+
 
 static void set_vote(player_data *pl, uint32_t vote) {
 	if(vote == pl->vote)
@@ -119,11 +137,15 @@ static void scattershot_packet(std::vector<uint8_t>& packet) {
 			for(size_t j = 0; j < g_players.size(); j += WORKERS) {
 				player_data *pl = &g_players[j];
 				libwebsocket *wsi = pl->wsi;
-				if(!wsi || wsi->state != WSI_STATE_ESTABLISHED)
+				if(!wsi)
 					continue;
-				// just do the send raw here
-				// if buffer is full, fuck that, disconnect them
-
+				// Note: Docs say not to do this outside of
+				// LWS_CALLBACK_SERVER_WRITEABLE or on multiple threads.  But
+				// it doesn't actually matter (if you don't mind sometimes
+				// rudely disconnecting people).
+				int ret = libwebsocket_write(wsi, (unsigned char *) packet.data(), packet.size(), LWS_WRITE_BINARY);
+				if(ret != packet.size())
+					disconnect_player(pl);
 			}
 		});
 	}
@@ -138,20 +160,96 @@ static void do_frame() {
 	if(g_current_batch_idx == BATCH_SIZE) {
 		std::vector<uint8_t> packet;
 		// actually, add the WS bullshit here
-		packet.resize(sizeof(batch_packet) + g_popularity.size() * sizeof(uint16_t));
-		batch_packet *bp = (batch_packet *) packet.data();
+		packet.resize(LWS_SEND_BUFFER_PRE_PADDING + sizeof(batch_packet) + g_popularity.size() * sizeof(uint16_t) + LWS_SEND_BUFFER_POST_PADDING);
+		batch_packet *bp = (batch_packet *) (packet.data() + LWS_SEND_BUFFER_POST_PADDING);
 		bp->type = 0;
 		bp->frame = g_frame - BATCH_SIZE + 1;
 		bp->num_inputs = BATCH_SIZE;
 		memcpy(bp->inputs, g_current_batch, sizeof(bp->inputs));
 		size_t i = 0;
 		for(auto it : g_popularity) {
-			bp->popcnt_data[i++] = {it.first, it.second};
+			bp->popcnt_data[i++] = {it.first, (uint32_t) it.second};
 		}
-		distribute_packet(packet);
+		scattershot_packet(packet);
 
 		g_current_batch_idx = 0;
 	}
 
 }
 
+#define please(x) do { if((x) == -1) fprintf(stderr, "%s failed: %s\n", #x, strerror(errno)); } while(0)
+
+static int keyserver_callback(struct libwebsocket_context *context, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason, void *user, void *in, size_t len) {
+#if USE_EPOLL
+	libwebsocket_pollargs *pa = (libwebsocket_pollargs *) in;
+#endif
+	switch(reason) {
+#if USE_EPOLL
+	case LWS_CALLBACK_ADD_POLL_FD:
+		please(epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, pa->fd, (epoll_event[]) {{translate_pa_mode(pa->events), {.ptr = pa}}}));
+		break;
+	case LWS_CALLBACK_CHANGE_MODE_POLL_FD:
+		please(epoll_ctl(g_epoll_fd, EPOLL_CTL_MOD, pa->fd, (epoll_event[]) {{translate_pa_mode(pa->events), {.ptr = pa}}}));
+		break;
+	case LWS_CALLBACK_CHANGE_MODE_POLL_FD:
+		please(epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, pa->fd, NULL));
+		break;
+#endif
+	default:
+		break;
+	}
+	return 0;
+}
+
+static int keyserver_admin_callback(struct libwebsocket_context *context, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason, void *user, void *in, size_t len) {
+
+	return 0;
+}
+
+static void serve() {
+#if USE_EPOLL
+	struct epoll_event events[16];
+	int ready = epoll_wait(g_epoll_fd, events, sizeof(events)/sizeof(*events), 4) == -1;
+	if(ready == -1) {
+		perror("epoll_wait");
+		exit(1);
+	}
+	for(int i = 0; i < ready; i++) {
+		auto pa = (libwebsocket_pollargs *) events[i].data.ptr;
+		please(libwebsocket_service_fd(g_lws_ctx, pa));
+	}
+#else
+	please(libwebsocket_service(g_lws_ctx, 4));
+#endif
+}
+
+int main() {
+	g_rand = std::default_random_engine(std::random_device()());
+	g_lws_ctx = libwebsocket_create_context((lws_context_creation_info[]) {{
+		.port = 4321,
+		.iface = NULL,
+		.protocols = (libwebsocket_protocols[]) {
+			{
+				.name = "keyserver",
+				.callback = keyserver_callback,
+				.per_session_data_size = 0,
+				.rx_buffer_size = 8
+			},
+			{
+				.name = "keyserver-admin",
+				.callback = keyserver_admin_callback,
+				.per_session_data_size = 0,
+				.rx_buffer_size = 120000,
+			},
+		},
+		.gid = -1,
+		.uid = -1
+	}});
+#if USE_EPOLL
+	g_epoll_fd = epoll_create(1);
+#endif
+	while(1) {
+		serve();
+		// gettimeofday, frame...
+	}
+}

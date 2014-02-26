@@ -1,2 +1,2 @@
 keyserver: keyserver.cpp Makefile
-	gcc -o $@ $< -O2 -std=c++11
+	g++ -o $@ $< -O2 -Ilibwebsockets/lib -Ilibwebsockets-build libwebsockets-build/lib/libwebsockets.a -std=c++11 
