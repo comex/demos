@@ -113,9 +113,9 @@ static void scattershot_packet(std::vector<uint8_t>& packet) {
 	// this is actually going to be eating most of the CPU just popping between
 	// userland and kernelland and poking TCP queues.  Whatever.  If I double
 	// the batch rate it will almost certainly be OK, so...
+	std::future<void> f[4];
 	for(int i = 0; i < WORKERS; i++) {
-		std::async(std::launch::async, [=] {
-			std::lock_guard lk(g_conn_mtx);
+		f[i] = std::async(std::launch::async, [=] {
 			for(size_t j = 0; j < g_players.size(); j += WORKERS) {
 				player_data *pl = &g_players[j];
 				libwebsocket *wsi = pl->wsi;
@@ -127,8 +127,9 @@ static void scattershot_packet(std::vector<uint8_t>& packet) {
 			}
 		});
 	}
+	for(int i = 0; i < WORKERS; i++)
+		f[i].wait();
 }
-
 
 static void do_frame() {
 	inc_frame();
