@@ -171,4 +171,21 @@ void vbam_js_main() {
     emulator.emuMain(emulator.emuCount);
 }
 
+EMSCRIPTEN_KEEPALIVE
+int vbam_js_save_state(char *mem, int size) {
+  gzFile gzFile = utilMemGzOpen(mem, size, "w");
+
+  if(gzFile == NULL) {
+    return -1;
+  }
+
+  bool res = CPUWriteState(gzFile);
+  return utilGzMemTell(gzFile);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool vbam_js_load_state(char *mem, int size) {
+  return emulator.emuReadMemState(mem, size);
+}
+
 } // extern

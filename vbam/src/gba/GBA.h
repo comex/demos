@@ -96,6 +96,7 @@ extern bool CPUReadState(const u8*, unsigned);
 extern unsigned int CPUWriteState(u8 *data, unsigned int size);
 #else
 extern bool CPUReadState(const char *);
+extern bool CPUWriteState(gzFile gzFile);
 extern bool CPUWriteState(const char *);
 #endif
 extern int CPULoadRom(const char *);

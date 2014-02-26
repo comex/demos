@@ -615,7 +615,7 @@ bool CPUWriteMemState(char *memory, int available)
    return false;
 }
 #else
-static bool CPUWriteState(gzFile gzFile)
+bool CPUWriteState(gzFile gzFile)
 {
   utilWriteInt(gzFile, SAVE_GAME_VERSION);
 

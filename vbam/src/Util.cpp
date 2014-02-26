@@ -609,18 +609,13 @@ void utilWriteData(gzFile gzFile, variable_desc *data)
 #if JS
 gzFile utilGzOpen(const char *name, const char *mode)
 {
-  int size;
-  u8 *mem = utilLoad(name, NULL, NULL, size);
-  gzFile file = utilMemGzOpen((char *) mem, size, NULL);
-  file->should_free = true;
-  return file;
+  return NULL;
 }
 
 gzFile utilMemGzOpen(char *memory, int available, const char *mode)
 {
   gzFile file = new _gzFile;
   file->buffer = (u8 *) memory;
-  file->should_free = false;
   file->len = available;
   file->off = 0;
   return file;
@@ -630,7 +625,7 @@ int utilGzWrite(gzFile file, const voidp buffer, unsigned int len)
 {
   if(len > file->len - file->off)
     len = file->len - file->off;
-  memcpy(file->buffer, buffer, len);
+  memcpy(file->buffer + file->off, buffer, len);
   file->off += len;
   return len;
 }
@@ -639,15 +634,13 @@ int utilGzRead(gzFile file, voidp buffer, unsigned int len)
 {
   if(len > file->len - file->off)
     len = file->len - file->off;
-  memcpy(buffer, file->buffer, len);
+  memcpy(buffer, file->buffer + file->off, len);
   file->off += len;
   return len;
 }
 
 int utilGzClose(gzFile file)
 {
-  if (file->should_free)
-    free(file->buffer);
   delete file;
   return 0;
 }

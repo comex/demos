@@ -5,7 +5,9 @@
 #include <random>
 #include <future>
 #include <mutex>
+#include <algorithm>
 #include <stdlib.h>
+#include <sys/mman.h>
 
 #define USE_EPOLL !__APPLE__
 
@@ -21,9 +23,12 @@
 #define UNVOTE_DELAY (60*5)
 #define BATCH_SIZE 10
 #define WORKERS 4
+#define MAX_POPULARITY 10
 
 struct player_data {
 	libwebsocket *wsi;
+	bool ready;
+	bool magic;
 	int fd;
 	uint64_t pid;
 	size_t voting_players_idx;
@@ -37,6 +42,17 @@ struct queued_event {
 	uint64_t pid;
 };
 
+enum {
+	REQ_GIMME_SINCE = 0,
+	REQ_SET_VOTE = 1,
+	REQ_SET_RUNNING = 2,
+};
+
+enum {
+	RES_HERES_YOUR_STUFF = 0,
+	RES_BATCH = 1,
+};
+
 struct popularity_packet {
 	uint16_t vote;
 	uint32_t popularity;
@@ -46,17 +62,18 @@ struct batch_packet {
 	uint8_t type;
 	uint64_t frame;
 	uint8_t num_inputs;
-	uint16_t inputs[BATCH_SIZE];
-	popularity_packet popcnt_data[0];
 } __attribute__((packed));
 
 static libwebsocket_context *g_lws_ctx;
 
 static std::default_random_engine g_rand;
 
+static bool g_running;
+
 static uint64_t g_next_pid;
 
 static uint64_t g_frame;
+static uint64_t g_next_frame_time;
 
 static std::unordered_map<uint16_t, size_t> g_popularity;
 
@@ -70,12 +87,38 @@ static size_t g_voting_players_count;
 
 static std::deque<queued_event> g_events;
 
-static uint16_t g_current_batch[BATCH_SIZE];
-static int g_current_batch_idx;
+static int g_history_fd;
+static void *g_history_file;
+static size_t g_history_file_size;
+static uint64_t *g_history_count;
+static uint16_t *g_history_frames;
 
 #if USE_EPOLL
 static int g_epoll_fd;
 #endif
+
+#define please(x) do { if((x) == -1) fprintf(stderr, "%s failed: %s\n", #x, strerror(errno)); } while(0)
+
+static uint8_t *get_packet(size_t size) {
+	return (uint8_t *) malloc(LWS_SEND_BUFFER_PRE_PADDING + size + LWS_SEND_BUFFER_POST_PADDING) + LWS_SEND_BUFFER_PRE_PADDING;
+}
+
+static void un_packet(uint8_t *packet) {
+	free(packet - LWS_SEND_BUFFER_PRE_PADDING);
+}
+
+static uint64_t get_time() {
+	struct timeval tv = {0};
+	please(gettimeofday(&tv, NULL));
+	return ((uint64_t) tv.tv_sec) * 1000000 + tv.tv_usec;
+}
+
+static void set_running(bool running) {
+	if(running && !g_running) {
+		g_next_frame_time = get_time();
+	}
+	g_running = running;
+}
 
 
 static void disconnect_player(player_data *pl) {
@@ -83,7 +126,7 @@ static void disconnect_player(player_data *pl) {
 }
 
 
-static void set_vote(player_data *pl, uint32_t vote) {
+static void set_vote(player_data *pl, uint16_t vote) {
 	if(vote == pl->vote)
 		return;
 	if(pl->vote != NO_VOTE) {
@@ -104,7 +147,7 @@ static void set_vote(player_data *pl, uint32_t vote) {
 	}
 }
 
-static uint32_t get_input() {
+static uint16_t get_input() {
 	if(g_voting_players_count == 0)
 		return 0;
 	std::uniform_int_distribution<size_t> distr(0, g_voting_players_count - 1);
@@ -126,7 +169,7 @@ static void inc_frame() {
 	}
 }
 
-static void scattershot_packet(std::vector<uint8_t>& packet) {
+static void scattershot_packet(void *packet, size_t len) {
 	// In the /extremely/ unlikely case that this becomes TPP-level popular,
 	// this is actually going to be eating most of the CPU just popping between
 	// userland and kernelland and poking TCP queues.  Whatever.  If I double
@@ -137,14 +180,14 @@ static void scattershot_packet(std::vector<uint8_t>& packet) {
 			for(size_t j = 0; j < g_players.size(); j += WORKERS) {
 				player_data *pl = &g_players[j];
 				libwebsocket *wsi = pl->wsi;
-				if(!wsi)
+				if(!wsi || !pl->ready)
 					continue;
 				// Note: Docs say not to do this outside of
 				// LWS_CALLBACK_SERVER_WRITEABLE or on multiple threads.  But
 				// it doesn't actually matter (if you don't mind sometimes
 				// rudely disconnecting people).
-				int ret = libwebsocket_write(wsi, (unsigned char *) packet.data(), packet.size(), LWS_WRITE_BINARY);
-				if(ret != packet.size())
+				int ret = libwebsocket_write(wsi, (unsigned char *) packet, len, LWS_WRITE_BINARY);
+				if(ret != len)
 					disconnect_player(pl);
 			}
 		});
@@ -153,31 +196,56 @@ static void scattershot_packet(std::vector<uint8_t>& packet) {
 		f[i].wait();
 }
 
+static void add_to_history(uint16_t input) {
+	if(sizeof(*g_history_count) + g_frame * sizeof(*g_history_frames) >= g_history_file_size) {
+		if(g_history_file_size)
+			munmap(g_history_file, g_history_file_size);
+		g_history_file_size = (g_history_file_size + 0x1000) * 2;
+		if(ftruncate(g_history_fd, g_history_file_size) == -1) {
+			perror("ftruncate");
+			exit(1);
+		}
+		if((g_history_file = mmap(NULL, g_history_file_size, PROT_READ | PROT_WRITE, MAP_SHARED, g_history_fd, 0)) == MAP_FAILED) {
+			perror("mmap");
+			exit(1);
+		}
+		g_history_count = (uint64_t *) g_history_file;
+		g_history_frames = (uint16_t *) (g_history_count + 1);
+	}
+	*g_history_count = g_frame;
+	g_history_frames[g_frame - 1] = input;
+}
+
 static void do_frame() {
 	inc_frame();
-	uint32_t input = get_input();
-	g_current_batch[g_current_batch_idx++] = input;
-	if(g_current_batch_idx == BATCH_SIZE) {
-		std::vector<uint8_t> packet;
-		// actually, add the WS bullshit here
-		packet.resize(LWS_SEND_BUFFER_PRE_PADDING + sizeof(batch_packet) + g_popularity.size() * sizeof(uint16_t) + LWS_SEND_BUFFER_POST_PADDING);
-		batch_packet *bp = (batch_packet *) (packet.data() + LWS_SEND_BUFFER_POST_PADDING);
-		bp->type = 0;
-		bp->frame = g_frame - BATCH_SIZE + 1;
-		bp->num_inputs = BATCH_SIZE;
-		memcpy(bp->inputs, g_current_batch, sizeof(bp->inputs));
-		size_t i = 0;
-		for(auto it : g_popularity) {
-			bp->popcnt_data[i++] = {it.first, (uint32_t) it.second};
-		}
-		scattershot_packet(packet);
+	uint16_t input = get_input();
+	add_to_history(input);
 
-		g_current_batch_idx = 0;
+	if(g_frame % BATCH_SIZE == 0) {
+		size_t num_inputs = BATCH_SIZE;
+		// actually, add the WS bullshit here
+		size_t len =
+			sizeof(batch_packet) +
+			num_inputs * sizeof(uint16_t) +
+			std::min(g_popularity.size(), (size_t) MAX_POPULARITY) * sizeof(popularity_packet);
+		uint8_t *packet = get_packet(len);
+		batch_packet *bp = (batch_packet *) packet;
+		bp->type = RES_BATCH;
+		bp->frame = g_frame - num_inputs + 1;
+		bp->num_inputs = num_inputs;
+		auto inputs = (uint16_t *) &bp[1];
+		memcpy(inputs, g_history_frames + g_frame - num_inputs, num_inputs * sizeof(uint16_t));
+		size_t i = 0;
+		auto popcnt_data = (popularity_packet *) &inputs[num_inputs];
+		for(auto it : g_popularity) {
+			popcnt_data[i++] = {it.first, (uint32_t) it.second};
+			if(i == MAX_POPULARITY) break;
+		}
+		scattershot_packet(packet, len);
+		un_packet(packet);
 	}
 
 }
-
-#define please(x) do { if((x) == -1) fprintf(stderr, "%s failed: %s\n", #x, strerror(errno)); } while(0)
 
 static int keyserver_callback(struct libwebsocket_context *context, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason, void *user, void *in, size_t len) {
 #if USE_EPOLL
@@ -195,14 +263,69 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 		please(epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, pa->fd, NULL));
 		break;
 #endif
+	case LWS_CALLBACK_ESTABLISHED: {
+		int fd = wsi->sock;
+		if(fd >= g_players.size())
+			g_players.resize(fd + 1);
+		struct sockaddr_in sin;
+		socklen_t len = sizeof(sin);
+		bool is_magic = getpeername(fd, (struct sockaddr *) &sin, &len) != -1 &&
+			ntohl(sin.sin_addr.s_addr) == 0x7f000001;
+		g_players[fd] = (player_data) {
+			.wsi = wsi,
+			.fd = fd,
+			.pid = g_next_pid++,
+			.magic = is_magic,
+		};
+		if(!is_magic)
+			g_num_players++;
+		break;
+	}
+	case LWS_CALLBACK_RECEIVE: {
+		player_data *pl = &g_players.at(wsi->sock);
+		auto buf = (uint8_t *) in;
+		if(len < 1)
+			return -1;
+		int req = buf[0];
+		if(req == REQ_GIMME_SINCE) {
+			if(len != 9)
+				return -1;
+			auto since = *(uint64_t *) (buf + 1);
+			if(since < 1 || since > g_frame || (g_frame - since > 60*30 && !pl->magic))
+				return -1;
+			uint64_t frames = g_frame - (since - 1);
+
+			size_t outlen = 1 + frames * sizeof(uint16_t);
+			uint8_t *packet = get_packet(outlen);
+			packet[0] = RES_HERES_YOUR_STUFF;
+			memcpy(&packet[1], g_history_frames + (since - 1), frames * sizeof(uint16_t));
+			int ret = libwebsocket_write(wsi, packet, outlen, LWS_WRITE_BINARY);
+			if(ret != outlen)
+				disconnect_player(pl);
+			un_packet(packet);
+		} else if(req == REQ_SET_VOTE) {
+			if(len != 3)
+				return -1;
+			set_vote(pl, *(uint16_t *) (buf + 1));
+		} else if(req == REQ_SET_RUNNING && pl->magic) {
+			if(len != 2)
+				return -1;
+			set_running(buf[1]);
+		} else {
+			return -1;
+		}
+		break;
+	}
+	case LWS_CALLBACK_CLOSED: {
+		player_data *pl = &g_players.at(wsi->sock);
+		pl->wsi = NULL;
+		if(!pl->magic)
+			g_num_players--;
+		break;
+	}
 	default:
 		break;
 	}
-	return 0;
-}
-
-static int keyserver_admin_callback(struct libwebsocket_context *context, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason, void *user, void *in, size_t len) {
-
 	return 0;
 }
 
@@ -225,6 +348,11 @@ static void serve() {
 
 int main() {
 	g_rand = std::default_random_engine(std::random_device()());
+	g_history_fd = open("history.bin", O_RDWR | O_CREAT);
+	if(g_history_fd == -1) {
+		perror("open history");
+		exit(1);
+	}
 	g_lws_ctx = libwebsocket_create_context((lws_context_creation_info[]) {{
 		.port = 4321,
 		.iface = NULL,
@@ -233,13 +361,7 @@ int main() {
 				.name = "keyserver",
 				.callback = keyserver_callback,
 				.per_session_data_size = 0,
-				.rx_buffer_size = 8
-			},
-			{
-				.name = "keyserver-admin",
-				.callback = keyserver_admin_callback,
-				.per_session_data_size = 0,
-				.rx_buffer_size = 120000,
+				.rx_buffer_size = 16
 			},
 		},
 		.gid = -1,
@@ -250,6 +372,16 @@ int main() {
 #endif
 	while(1) {
 		serve();
-		// gettimeofday, frame...
+		if(g_running) {
+			uint16_t now = get_time();
+			if(now >= g_next_frame_time) {
+				do_frame();
+				if(now - g_next_frame_time >= 300000) {
+					// we've fallen behind...
+					g_next_frame_time = now;
+				}
+				g_next_frame_time += (1000000/60);
+			}
+		}
 	}
 }

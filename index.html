@@ -119,6 +119,8 @@ function drawFrame() {
 function ready() {
     vbam_js_init = Module.cwrap('vbam_js_init', 'void', ['string']);
     vbam_js_main = Module.cwrap('vbam_js_main', 'void', []);
+    vbam_js_save_state = Module.cwrap('vbam_js_save_state', 'number', ['number', 'number']);
+    vbam_js_load_state = Module.cwrap('vbam_js_load_state', 'number', ['number', 'number']);
     vbamReady = true;
     loadingStep();
 }
