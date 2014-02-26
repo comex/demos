@@ -9,12 +9,22 @@ var vbamReady = false;
 
 function renderFrame() {
     vbam_js_main();
+    drawFrame();
     requestAnimationFrame(renderFrame);
 }
-
+function benchmark() {
+    var a = new Date().getTime();
+    for (var i = 0; i < 1200; i++) {
+        vbam_js_main();
+    }
+    var b = new Date().getTime();
+    alert(b - a);
+}
 function loadingStep() {
     if(!(romData && vbamReady))
         return;
+    //alert('Ready...');
+    //throw 'x';
     vbam_js_init('rom.gba');
     renderFrame();
 }
@@ -33,25 +43,86 @@ loadRom('rom.gba', function(buf) {
     loadingStep();
 });
 
-function readJoypad(which) {
+function vsysReadJoypad(which) {
     return 0;
 }
 
-function getExternalFile(file, resultPtr, sizePtr) {
+function vsysGetExternalFile(file, resultPtr, sizePtr) {
     var fn = Module.Pointer_stringify(file);
     console.log(fn);
     var size = romData.byteLength;
-    var buf = Module._malloc(size);
-    Module.HEAPU8.set(romData, buf);
+    var buf = Module.HEAPU32[resultPtr/4] || Module._malloc(size);
+    Module.HEAPU8.set(new Uint8Array(romData), buf);
     Module.HEAPU32[resultPtr/4] = buf;
     Module.HEAPU32[sizePtr/4] = size;
 }
+
+
+function vsysInitSound() {
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    try {
+        audioContext = new AudioContext();
+    } catch(e) {
+        throw 'no audio API support';
+    }
+
+    heapS16 = new Int16Array(Module.HEAPU16.buffer);
+
+    return audioContext.sampleRate;
+}
+
+soundNextTime = 0;
+
+function vsysWriteSound(buf, length) {
+    var samples = length >> 2;
+    var source = audioContext.createBufferSource();
+    // waste of time
+    var buffer = audioContext.createBuffer(2, samples, audioContext.sampleRate);
+    var l = buffer.getChannelData(0);
+    var r = buffer.getChannelData(1);
+    //console.log(length, h16[buf], h16[buf+1], h16[buf+2], h16[buf+3]);
+    var h16 = heapS16;
+    for(var i = 0, p = buf/2; i < samples; i++, p += 2) {
+        l[i] = h16[p] / 0x8000;
+        r[i] = h16[p + 1] / 0x8000;
+    }
+    source.buffer = buffer;
+    source.onended = function() {
+        source.disconnect();
+    }
+    source.connect(audioContext.destination);
+    var time = soundNextTime;
+    if(time < audioContext.currentTime - 0.1 ||
+       time > audioContext.currentTime + 1) {
+        console.log('Resetting...' + (time - audioContext.currentTime));
+        time = audioContext.currentTime + 0.2;
+    }
+    source.start(time);
+    soundNextTime = time + samples / audioContext.sampleRate;
+}
+
+function vsysInitGraphics(width, height, pix) {
+    cvs = document.getElementById('canvas');
+    cvs.width = width;
+    cvs.height = height;
+    c2d = cvs.getContext('2d');
+    imageData = c2d.createImageData(width, height);
+    imagePix = new Uint8Array(Module.HEAPU8.buffer, pix, 4*width*height);
+}
+
+function drawFrame() {
+    //console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
+    imageData.data.set(imagePix);
+    c2d.putImageData(imageData, 0, 0);
+}
+
 function ready() {
     vbam_js_init = Module.cwrap('vbam_js_init', 'void', ['string']);
     vbam_js_main = Module.cwrap('vbam_js_main', 'void', []);
     vbamReady = true;
     loadingStep();
 }
+
 var Module = {
     preRun: [],
     postRun: [ready],
@@ -61,7 +132,6 @@ var Module = {
     printErr: function(text) {
         console.log(text);
     },
-    canvas: document.getElementById('canvas'),
     setStatus: function(text) {
         console.log(text);
     },

@@ -222,9 +222,10 @@ SET(SRC_FEX
 
 SET(SRC_MAIN
     src/Util.cpp
-    src/common/Patch.cpp
+    src/JSMain.cpp
+    #src/common/Patch.cpp
     #src/common/memgzio.c
-    src/common/SoundSDL.cpp
+    #src/common/SoundSDL.cpp
 )
 
 if(ENABLE_FFMPEG)
@@ -387,8 +388,19 @@ ENDIF( ENABLE_FFMPEG )
 #   ${SRC_FEX}
 #)
 
-ADD_LIBRARY (
-    vbamcore
+#ADD_LIBRARY (
+#    vbamcore
+#    ${PROJECT_SRCS}
+#    ${SRC_MAIN}
+#    ${SRC_GBA}
+#    #${SRC_GB}
+#    ${SRC_APU}
+#    #${SRC_FILTERS}
+#    ${SRC_DEBUGGER}
+#)
+
+ADD_EXECUTABLE (
+    vbam
     ${PROJECT_SRCS}
     ${SRC_MAIN}
     ${SRC_GBA}
@@ -397,7 +409,6 @@ ADD_LIBRARY (
     #${SRC_FILTERS}
     ${SRC_DEBUGGER}
 )
-
 IF( ENABLE_SDL )
     ADD_EXECUTABLE (
         vbam

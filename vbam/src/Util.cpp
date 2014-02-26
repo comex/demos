@@ -507,7 +507,7 @@ u8 *utilLoad(const char *file,
 {
 #if JS
   u8 *result = data;
-  EM_ASM_INT(getExternalFile($0, $1, $2), (int) file, (int) &result, (int) &size);
+  EM_ASM_INT(vsysGetExternalFile($0, $1, $2), (int) file, (int) &result, (int) &size);
   return result;
 #else
 	// find image file
@@ -775,7 +775,11 @@ void utilUpdateSystemColorMaps(bool lcd)
       for(int i = 0; i < 0x10000; i++) {
         systemColorMap32[i] = ((i & 0x1f) << systemRedShift) |
           (((i & 0x3e0) >> 5) << systemGreenShift) |
-          (((i & 0x7c00) >> 10) << systemBlueShift);
+          (((i & 0x7c00) >> 10) << systemBlueShift)
+#if JS
+          | 0xff000000 /* alpha */
+#endif
+          ;
       }
       if (lcd) gbafilter_pal32(systemColorMap32, 0x10000);
     }
