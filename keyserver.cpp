@@ -132,9 +132,10 @@ static void set_vote(player_data *pl, uint16_t vote) {
 		g_popularity[vote]++;
 	}
 	if(vote == NO_VOTE) {
-		player_data *pl = g_voting_players.back();
+		player_data *opl = g_voting_players.back();
 		g_voting_players.pop_back();
-		g_voting_players[pl->voting_players_idx] = pl;
+		opl->voting_players_idx = pl->voting_players_idx;
+		g_voting_players[opl->voting_players_idx] = opl;
 	} else if(pl->vote == NO_VOTE) {
 		pl->voting_players_idx = g_voting_players.size();
 		g_voting_players.push_back(pl);

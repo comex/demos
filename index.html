@@ -171,6 +171,7 @@ function loadSave() {
         connectToSocket();
     }, function() {
         console.log('No state...');
+        currentFrame = 0;
         connectToSocket();
     });
 }
