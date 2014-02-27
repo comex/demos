@@ -233,9 +233,9 @@ function voteToText(vote) {
 		return '\ue000';
 	var s = '';
 	if(vote & 1)
-		s += 'A';
+		s += 'a';
 	if(vote & 2)
-		s += 'B';
+		s += 'b';
 	if(vote & 4)
 		s += 'Sel';
 	if(vote & 8)
@@ -288,11 +288,16 @@ function connectToSocket() {
 			}
 
 			populationSpan.textContent = numPlayers;
+			var totalPopularity = 0;
 			for(var i = 0; i < popularitySpans.length && offset < msg.length; i++, offset += 6) {
 				var vote = dv.getUint16(offset, true);
 				var popularity = dv.getUint32(offset + 2, true);
 				popularitySpans[i].textContent = voteToText(vote);
+				popularitySpans[i].popularity = popularity;
+				totalPopularity += popularity;
 			}
+			for(var j = 0; j < i; j++)
+				popularitySpans[j].style.opacity = (2 * popularitySpans[j].popularity / totalPopularity);
 			for(; i < popularitySpans.length; i++)
 				popularitySpans[i].textContent = '';
 
