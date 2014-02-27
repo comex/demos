@@ -1,21 +1,89 @@
 <style>
-.emscripten {
-    padding-right: 0;
+@font-face {
+    font-family: PowerRedandBlue;
+    src: url(PowerRedandBlue.woff);
+}
+body {
+    font-family: PowerRedandBlue;
+}
+#container {
+    display: block;
+    width: 482px;
+    height: 324px;
+    position: relative;
+
     margin-left: auto;
     margin-right: auto;
-    display: block;
+    border: 1px solid black;
+    background-color: black;
 }
-canvas.emscripten {
-    border: 0px none;
+
+#css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
+    position: absolute;
+    display: table;
+    width: 100%;
+    height: 100%;
+}
+
+#sub {
+    display: table-cell;
+    vertical-align: middle;
+    padding-left: 50%;
+
+}
+#warning {
+    font-size: 18px;
+    color: red;/*rgb(72, 72,7 2);*/
+    text-shadow:
+        1px 0px rgb(209, 208, 201),
+        1px 1px rgb(209, 208, 201);
+    margin-left: -100px;
+    width: 200px;
+    background: #fdd;
+    border: 2px solid rgb(95, 89, 108);
+    padding: 5px;
+    transition: opacity 0.8s;
+    opacity: 0;
+    text-align: center;
+    /*-webkit-transform: scale(3);*/
+}
+
+#ok {
+    margin-top: 10px;
+    background: #ccc;
+    padding: 3px;
+    padding-bottom: 0px;
+    text-align: center;
+    border: 0;
+    color: black;
+}
+
+#ok:hover {
+    background: #dbb;
+}
+
+#canvas {
+    padding-right: 0;
     image-rendering: -moz-crisp-edges;
     image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
     image-rendering: pixelated;
-    width: 482px;
-    height: 324px;
 }
 </style>
-<canvas class="emscripten" id="canvas"></canvas>
+<body>
+Here is some text
+<div id="container">
+    <div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
+        <div id="sub">
+            <div id="warning">
+                <div id="warning-text">Warn warn warn</div>
+                <div id="ok">OK</div>
+            </div>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+</div>
+</body>
 <script type='text/javascript'>
 var romData = null;
 var vbamReady = false;
@@ -36,8 +104,26 @@ function benchmark() {
     alert(b - a);
 }
 
+function someWarning(msg, isFatal) {
+    var warning = document.getElementById('warning');
+    var warningText = document.getElementById('warning-text');
+    var ok = document.getElementById('ok');
+    warningText.innerHTML = msg;
+    warning.style.opacity = 1;
+    ok.innerHTML = isFatal ? 'Refresh' : 'OK';
+    ok.onclick = function() {
+        warning.style.transition = 'opacity 0.2s';
+        warning.style.opacity = 0;
+        if(isFatal) {
+            window.location = window.location;
+        }
+    }
+}
+
+var isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+
 function someError(msg) {
-    alert(msg);
+    someWarning(msg, true);
     throw 'ack...';
 }
 
@@ -110,6 +196,11 @@ function startEmulation() {
             return false;
         }
     }
+
+    if(isSafari) {
+        someWarning('Note: This page will run faster in Firefox and Chrome than Safari.');
+    }
+
     emulationTick();
 }
 
@@ -147,8 +238,11 @@ function connectToSocket() {
 			// ignore popularity data
 		}
     }
+    ws.onclose = function(e) {
+        someError('WebSocket connection failed.');
+    }
     ws.onerror = function(e) {
-        someError('WebSocket error');
+        someError('WebSocket error?');
     }
 }
 
@@ -178,6 +272,7 @@ function loadSave() {
 
 function loadingPhase1() {
     if(romData && vbamReady) {
+        //someError('My name is BIRCH.');
         vbam_js_init('rom.gba');
         loadSave();
     }
@@ -266,19 +361,47 @@ function vsysWriteSound(buf, length) {
     soundNextTime = time + samples / audioContext.sampleRate;
 }
 
+scale = 2;
+// lol - reason is that Chrome does not respect image-rendering
+scaleInCanvas = true;//!!window.chrome;
+
 function vsysInitGraphics(width, height, pix) {
+    // Confused yet?
+    var realWidth = width - 1;
+    var realHeight = height - 2;
     cvs = document.getElementById('canvas');
-    cvs.width = width;
-    cvs.height = height;
     c2d = cvs.getContext('2d');
-    imageData = c2d.createImageData(width, height);
+    var bspr = c2d.webkitBackingStorePixelRatio || c2d.backingStorePixelRatio || 1;
+    if(scaleInCanvas) {
+        cvs.width = realWidth / bspr * scale;
+        cvs.height = realHeight / bspr * scale;
+    } else {
+        cvs.width = realWidth / bspr;
+        cvs.height = realHeight / bspr;
+    }
+    if(scale != 1 && scaleInCanvas) {
+        tempCvs = document.createElement('canvas');
+        tempCvs.width = realWidth;
+        tempCvs.height = realHeight;
+        tempC2d = tempCvs.getContext('2d');
+        c2d.scale(scale * bspr, scale * bspr);
+        c2d.mozImageSmoothingEnabled = false;
+        c2d.webkitImageSmoothingEnabled = false;
+        c2d.imageSmoothingEnabled = false;
+    } else {
+        tempC2d = c2d;
+    }
+    imageData = (c2d.webkitCreateImageDataHD || c2d.createImageDataHD || c2d.createImageData).call(c2d, width, height);
     imagePix = new Uint8Array(Module.HEAPU8.buffer, pix, 4*width*height);
 }
 
 function drawFrame() {
     //console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
     imageData.data.set(imagePix);
-    c2d.putImageData(imageData, 0, 0);
+    (tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageDatfa).call(tempC2d, imageData, 0, -1);
+    if(scale != 1 && scaleInCanvas) {
+        c2d.drawImage(tempCvs, 0, 0);
+    }
 }
 
 function ready() {
