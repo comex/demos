@@ -1,17 +1,32 @@
 <style>
-  .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-  canvas.emscripten { border: 0px none; }
+.emscripten {
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+canvas.emscripten {
+    border: 0px none;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+    width: 482px;
+    height: 324px;
+}
 </style>
 <canvas class="emscripten" id="canvas"></canvas>
 <script type='text/javascript'>
 var romData = null;
 var vbamReady = false;
 
-function renderFrame() {
-    vbam_js_main();
-    drawFrame();
-    requestAnimationFrame(renderFrame);
-}
+var
+	REQ_GIMME_SINCE = 0,
+	REQ_SET_VOTE = 1,
+	REQ_SET_RUNNING = 2,
+	RES_HERES_YOUR_STUFF = 0,
+	RES_BATCH = 1;
+
 function benchmark() {
     var a = new Date().getTime();
     for (var i = 0; i < 1200; i++) {
@@ -20,31 +35,109 @@ function benchmark() {
     var b = new Date().getTime();
     alert(b - a);
 }
-function loadingStep() {
-    if(!(romData && vbamReady))
-        return;
-    //alert('Ready...');
-    //throw 'x';
-    vbam_js_init('rom.gba');
-    renderFrame();
+
+function someError(msg) {
+    alert(msg);
+    throw 'ack...';
 }
 
-function loadRom(url, callback) {
+var pendingInputs = [];
+
+function emulationTick() {
+    var doneThisFrame = 0;
+    while(pendingInputs.length > 30 && doneThisFrame++ < 2) {
+        currentInput = pendingInputs.shift();
+        vbam_js_main();
+        currentFrame++;
+    }
+    drawFrame();
+    requestAnimationFrame(emulationTick);
+    //setTimeout(emulationTick, 1000);
+}
+
+function connectToSocket() {
+    ws = new WebSocket('ws://' + location.hostname + ':4321/keyserver', 'keyserver');
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = function() {
+        console.log('WS open');
+		var data = new DataView(new ArrayBuffer(9));
+		data.setUint8(0, REQ_GIMME_SINCE);
+		data.setUint32(1, currentFrame, true);
+		data.setUint32(5, currentFrame / 0x100000000, true);
+		ws.send(data.buffer);
+    }
+    ws.onmessage = function(e) {
+        var msg = new Uint8Array(e.data);
+		var dv = new DataView(msg.buffer);
+		if(msg[0] == RES_HERES_YOUR_STUFF) {
+			console.log('startup got ' + (msg.length - 1)/2 + ' frames');
+			for(var i = 1; i < msg.length; i += 2)
+                pendingInputs.push(dv.getUint16(i, true));
+            emulationTick();
+		} else if(msg[0] == RES_BATCH) {
+			var offset = 1;
+			var frame = dv.getUint32(offset, true) + dv.getUint32(offset + 4, true) * 0x100000000;
+			offset += 8;
+			var numPlayers = dv.getUint32(offset, true); offset += 4;
+			var numInputs = msg[offset++];
+			for(var i = 0; i < numInputs; i++) {
+				if(frame >= currentFrame)
+					pendingInputs.push(dv.getUint16(offset, true));
+				offset += 2;
+				frame++;
+			}
+			// ignore popularity data
+		}
+    }
+    ws.onerror = function(e) {
+        someError('WebSocket error');
+    }
+}
+
+function loadSave() {
+    loadURL('saves/current.sgm', function(state) {
+        var buf = Module._malloc(state.byteLength);
+        Module.HEAPU8.set(new Uint8Array(state), buf);
+        var length = state.byteLength - 12;
+        console.log(length);
+        var i = (buf + length)/4;
+        var id = Module.HEAPU32[i];
+        var frameLo = Module.HEAPU32[i+1];
+        var frameHi = Module.HEAPU32[i+2];
+        if(id != 0xfeedfeed)
+            someError('Invalid state file');
+        currentFrame = frameLo + (frameHi * 0x100000000);
+        if(!vbam_js_load_state(buf, length))
+            someError('Load state failed');
+        Module._free(buf);
+        connectToSocket();
+    }, function() { someError("Couldn't load state"); });
+}
+
+function loadingPhase1() {
+    if(romData && vbamReady) {
+        vbam_js_init('rom.gba');
+        loadSave();
+    }
+}
+
+function loadURL(url, callback, error) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url);
     xhr.responseType = 'arraybuffer';
 
     xhr.onload = function() { callback(xhr.response) };
+    xhr.onerror = error;
     xhr.send();
 }
 
-loadRom('rom.gba', function(buf) {
+loadURL('rom.gba', function(buf) {
     romData = buf;
-    loadingStep();
-});
+    loadingPhase1();
+}, function() { someError("Couldn't load ROM"); });
 
 function vsysReadJoypad(which) {
-    return 0;
+    return currentInput;
 }
 
 function vsysGetExternalFile(file, resultPtr, sizePtr) {
@@ -122,7 +215,7 @@ function ready() {
     vbam_js_save_state = Module.cwrap('vbam_js_save_state', 'number', ['number', 'number']);
     vbam_js_load_state = Module.cwrap('vbam_js_load_state', 'number', ['number', 'number']);
     vbamReady = true;
-    loadingStep();
+    loadingPhase1();
 }
 
 var Module = {
