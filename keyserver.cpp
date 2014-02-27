@@ -127,15 +127,17 @@ static void set_vote(player_data *pl, uint16_t vote) {
 	if(pl->vote != NO_VOTE) {
 		if(--g_popularity[pl->vote] == 0)
 			g_popularity.erase(pl->vote);
-		g_voting_players[pl->voting_players_idx] = pl;
+	}
+	if(vote != NO_VOTE) {
 		g_popularity[vote]++;
-	} else if(vote == NO_VOTE) {
+	}
+	if(vote == NO_VOTE) {
 		player_data *pl = g_voting_players.back();
 		g_voting_players.pop_back();
 		g_voting_players[pl->voting_players_idx] = pl;
-	} else {
+	} else if(pl->vote == NO_VOTE) {
+		pl->voting_players_idx = g_voting_players.size();
 		g_voting_players.push_back(pl);
-		g_popularity[vote]++;
 	}
 	pl->vote = vote;
 	pl->vote_frame = g_frame;
@@ -297,6 +299,7 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 		pl->fd = fd;
 		pl->pid = g_next_pid++;
 		pl->magic = is_magic;
+		pl->vote = NO_VOTE;
 		if(!is_magic)
 			g_num_players++;
 		break;
