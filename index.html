@@ -1,3 +1,4 @@
+<title>HTML Plays Pokemon</title>
 <style>
 @font-face {
 	font-family: PowerRedandBlue;
@@ -6,10 +7,15 @@
 body {
 	font-family: PowerRedandBlue;
 }
-#outer {
+#everything {
 	width: 482px;
 	margin-left: auto;
 	margin-right: auto;
+}
+#emu-big-box {
+	width: 482px;
+	display: table-cell;
+	vertical-align: top;
 }
 #container {
 	position: relative;
@@ -81,22 +87,70 @@ body {
 	image-rendering: crisp-edges;
 	image-rendering: pixelated;
 }
+
+#description {
+	border-radius: 2px;
+	border: 1px solid #888;
+	background-color: #fff8f8;
+	font-size: 12px;
+	padding: 4px;
+
+}
+
+.tab {
+	display: inline-block;
+	margin-top: 5px;
+	margin-bottom: 4px;
+	padding: 3px;
+	padding-bottom: 1px;
+	background-color: rgb(255, 242, 240);
+	border-radius: 2px;
+	border: 1px solid #888;
+	text-decoration: none;
+	color: #888;
+}
+
+.tabsel {
+	color: black;
+}
+
+#chat {
+	display: none;
+	border: 0;
+	height: 320px;
+	width: 100%;
+}
 </style>
 <body>
-<div id="outer">
-	<div id="stats">
-	</div>
-	<div id="container">
-		<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
-			<div id="sub">
-				<div id="warning">
-					<div id="warning-text">Warn warn warn</div>
-					<div id="ok">OK</div>
+<div id="everything">
+	<div id="emu-big-box">
+		<div id="stats">
+		</div>
+		<div id="container">
+			<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
+				<div id="sub">
+					<div id="warning">
+						<div id="warning-text">Warn warn warn</div>
+						<div id="ok">OK</div>
+					</div>
 				</div>
 			</div>
+			<canvas id="canvas"></canvas>
 		</div>
-		<canvas id="canvas"></canvas>
 	</div>
+
+	<div id="buttons">
+		<a id="descbutton" class="tab tabsel" href="#">About</a>
+		<a id="chatbutton" class="tab" href="#">Chat</a>
+	</div>
+
+	<div id="description">
+		Some text...<br>
+		Some text...<br>
+		Some text...<br>
+	</div>
+
+	<iframe id="chat" src="http://chat.efnet.org:9090/?channels=htmlplayspokemon"></iframe>
 </div>
 </body>
 <script type='text/javascript'>
@@ -119,7 +173,11 @@ function benchmark() {
 	alert(b - a);
 }
 
+var didError = false;
+
 function someWarning(msg, isFatal) {
+	if(isFatal)
+		didError = true;
 	var warning = document.getElementById('warning');
 	var warningText = document.getElementById('warning-text');
 	var ok = document.getElementById('ok');
@@ -146,6 +204,8 @@ var pendingInputs = [];
 
 function emulationTick() {
 	var doneThisFrame = 0;
+	if(pendingInputs.length > 60*20 && !didError)
+		someWarning('Emulation too far behind...', true);
 	while(pendingInputs.length > 30 && doneThisFrame++ < 2) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
