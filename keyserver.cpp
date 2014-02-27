@@ -398,7 +398,7 @@ int main() {
 	pi.name = "keyserver";
 	pi.callback = keyserver_callback;
 	pi.per_session_data_size = 0;
-	pi.rx_buffer_size = 4096;
+	pi.rx_buffer_size = 4096*4;
 
 	lws_context_creation_info ci;
 	memset(&ci, 0, sizeof(ci));
