@@ -7,7 +7,6 @@
 typedef long long z_off_t;
 typedef struct _gzFile {
   u8 *buffer;
-  bool should_free;
   z_off_t len;
   z_off_t off;
 } *gzFile;
@@ -66,6 +65,7 @@ extern bool systemReadJoypads();
 // return information about the given joystick, -1 for default joystick
 extern u32 systemReadJoypad(int);
 extern u32 systemGetClock();
+extern struct tm *systemTime(); // fake time
 extern void systemMessage(int, const char *, ...);
 extern void systemSetTitle(const char *);
 extern SoundDriver * systemSoundInit();

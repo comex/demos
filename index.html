@@ -169,7 +169,10 @@ function loadSave() {
             someError('Load state failed');
         Module._free(buf);
         connectToSocket();
-    }, function() { someError("Couldn't load state"); });
+    }, function() {
+        console.log('No state...');
+        connectToSocket();
+    });
 }
 
 function loadingPhase1() {
@@ -184,8 +187,18 @@ function loadURL(url, callback, error) {
     xhr.open('GET', url);
     xhr.responseType = 'arraybuffer';
 
-    xhr.onload = function() { callback(xhr.response) };
-    xhr.onerror = error;
+    function err() {
+        xhr.onload = null;
+        xhr.onerror = null;
+        error();
+    }
+    xhr.onload = function() {
+        if(xhr.status == 200)
+            callback(xhr.response) 
+        else
+            err();
+    };
+    xhr.onerror = err;
     xhr.send();
 }
 

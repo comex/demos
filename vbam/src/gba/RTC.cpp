@@ -116,11 +116,7 @@ bool rtcWrite(u32 address, u16 value)
               break;
             case 0x65:
               {
-                struct tm *newtime;
-                time_t long_time;
-
-                time( &long_time );                /* Get time as long integer. */
-                newtime = localtime( &long_time ); /* Convert to local time. */
+                struct tm *newtime = systemTime();
 
                 rtcClockData.dataLen = 7;
                 rtcClockData.data[0] = toBCD(newtime->tm_year);
@@ -135,11 +131,7 @@ bool rtcWrite(u32 address, u16 value)
               break;
             case 0x67:
               {
-                struct tm *newtime;
-                time_t long_time;
-
-                time( &long_time );                /* Get time as long integer. */
-                newtime = localtime( &long_time ); /* Convert to local time. */
+                struct tm *newtime = systemTime();
 
                 rtcClockData.dataLen = 3;
                 rtcClockData.data[0] = toBCD(newtime->tm_hour);

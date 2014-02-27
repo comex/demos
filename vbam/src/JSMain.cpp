@@ -55,6 +55,11 @@ u32 systemReadJoypad(int which) {
 u32 systemGetClock() {
   return time(NULL);
 }
+static uint64_t frameCount;
+struct tm *systemTime() {
+  time_t time = frameCount / 60;
+  return gmtime(&time);
+}
 void systemShowSpeed(int s) {
   printf("speed: %d\n", s);
 }
@@ -167,6 +172,7 @@ void vbam_js_init(char *szFile) {
 
 EMSCRIPTEN_KEEPALIVE
 void vbam_js_main() {
+  frameCount++;
   hadFrame = false;
   while (!hadFrame)
     emulator.emuMain(emulator.emuCount);

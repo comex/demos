@@ -122,14 +122,14 @@ static void set_running(bool running) {
 
 
 static void set_vote(player_data *pl, uint16_t vote) {
-	printf("%p: %x\n", pl, vote);
 	if(vote == pl->vote)
 		return;
 	if(pl->vote != NO_VOTE) {
 		if(--g_popularity[pl->vote] == 0)
 			g_popularity.erase(pl->vote);
-	}
-	if(vote == NO_VOTE) {
+		g_voting_players[pl->voting_players_idx] = pl;
+		g_popularity[vote]++;
+	} else if(vote == NO_VOTE) {
 		player_data *pl = g_voting_players.back();
 		g_voting_players.pop_back();
 		g_voting_players[pl->voting_players_idx] = pl;
@@ -168,6 +168,7 @@ static void inc_frame() {
 
 static void kill_player(player_data *pl) {
 	if(pl->wsi) {
+		set_vote(pl, NO_VOTE);
 		pl->wsi = NULL;
 		if(!pl->magic)
 			g_num_players--;
