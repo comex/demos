@@ -1,87 +1,102 @@
 <style>
 @font-face {
-    font-family: PowerRedandBlue;
-    src: url(PowerRedandBlue.woff);
+	font-family: PowerRedandBlue;
+	src: url(PowerRedandBlue.woff);
 }
 body {
-    font-family: PowerRedandBlue;
+	font-family: PowerRedandBlue;
+}
+#outer {
+	width: 482px;
+	margin-left: auto;
+	margin-right: auto;
 }
 #container {
-    display: block;
-    width: 482px;
-    height: 324px;
-    position: relative;
+	position: relative;
 
-    margin-left: auto;
-    margin-right: auto;
-    border: 1px solid black;
-    background-color: black;
+	height: 320px;
+	border: 1px solid black;
+	background-color: black;
+}
+
+#stats {
+	width: 482px;
+	height: 30px;
+	padding-top: 20px;
+}
+
+#stats span {
+	font-size: 18px;
+	margin-right: 40px;
 }
 
 #css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
-    position: absolute;
-    display: table;
-    width: 100%;
-    height: 100%;
+	position: absolute;
+	display: table;
+	width: 100%;
+	height: 100%;
 }
 
 #sub {
-    display: table-cell;
-    vertical-align: middle;
-    padding-left: 50%;
+	display: table-cell;
+	vertical-align: middle;
+	padding-left: 50%;
 
 }
 #warning {
-    font-size: 18px;
-    color: red;/*rgb(72, 72,7 2);*/
-    text-shadow:
-        1px 0px rgb(209, 208, 201),
-        1px 1px rgb(209, 208, 201);
-    margin-left: -100px;
-    width: 200px;
-    background: #fdd;
-    border: 2px solid rgb(95, 89, 108);
-    padding: 5px;
-    transition: opacity 0.8s;
-    opacity: 0;
-    text-align: center;
-    /*-webkit-transform: scale(3);*/
+	font-size: 18px;
+	color: red;/*rgb(72, 72,7 2);*/
+	text-shadow:
+		1px 0px rgb(209, 208, 201),
+		1px 1px rgb(209, 208, 201);
+	margin-left: -100px;
+	width: 200px;
+	background: #fdd;
+	border: 2px solid rgb(95, 89, 108);
+	padding: 5px;
+	transition: opacity 0.8s;
+	opacity: 0;
+	text-align: center;
+	/*-webkit-transform: scale(3);*/
 }
 
 #ok {
-    margin-top: 10px;
-    background: #ccc;
-    padding: 3px;
-    padding-bottom: 0px;
-    text-align: center;
-    border: 0;
-    color: black;
+	margin-top: 10px;
+	background: #ccc;
+	padding: 3px;
+	padding-bottom: 0px;
+	text-align: center;
+	border: 0;
+	color: black;
 }
 
 #ok:hover {
-    background: #dbb;
+	background: #dbb;
 }
 
 #canvas {
-    padding-right: 0;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: -webkit-optimize-contrast;
-    image-rendering: crisp-edges;
-    image-rendering: pixelated;
+	padding-right: 0;
+	image-rendering: -moz-crisp-edges;
+	image-rendering: -webkit-optimize-contrast;
+	image-rendering: crisp-edges;
+	image-rendering: pixelated;
 }
 </style>
 <body>
-Here is some text
-<div id="container">
-    <div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
-        <div id="sub">
-            <div id="warning">
-                <div id="warning-text">Warn warn warn</div>
-                <div id="ok">OK</div>
-            </div>
-        </div>
-    </div>
-    <canvas id="canvas"></canvas>
+<div id="outer">
+	<div id="stats">
+	</div>
+	<div id="container">
+		<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
+			<div id="sub">
+				<div id="warning">
+					<div id="warning-text">Warn warn warn</div>
+					<div id="ok">OK</div>
+				</div>
+			</div>
+		</div>
+		<canvas id="canvas"></canvas>
+	</div>
 </div>
 </body>
 <script type='text/javascript'>
@@ -96,133 +111,147 @@ var
 	RES_BATCH = 1;
 
 function benchmark() {
-    var a = new Date().getTime();
-    for (var i = 0; i < 1200; i++) {
-        vbam_js_main();
-    }
-    var b = new Date().getTime();
-    alert(b - a);
+	var a = new Date().getTime();
+	for (var i = 0; i < 1200; i++) {
+		vbam_js_main();
+	}
+	var b = new Date().getTime();
+	alert(b - a);
 }
 
 function someWarning(msg, isFatal) {
-    var warning = document.getElementById('warning');
-    var warningText = document.getElementById('warning-text');
-    var ok = document.getElementById('ok');
-    warningText.innerHTML = msg;
-    warning.style.opacity = 1;
-    ok.innerHTML = isFatal ? 'Refresh' : 'OK';
-    ok.onclick = function() {
-        warning.style.transition = 'opacity 0.2s';
-        warning.style.opacity = 0;
-        if(isFatal) {
-            window.location = window.location;
-        }
-    }
+	var warning = document.getElementById('warning');
+	var warningText = document.getElementById('warning-text');
+	var ok = document.getElementById('ok');
+	warningText.innerHTML = msg;
+	warning.style.opacity = 1;
+	ok.innerHTML = isFatal ? 'Refresh' : 'OK';
+	ok.onclick = function() {
+		warning.style.transition = 'opacity 0.2s';
+		warning.style.opacity = 0;
+		if(isFatal) {
+			window.location = window.location;
+		}
+	}
 }
 
 var isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
 
 function someError(msg) {
-    someWarning(msg, true);
-    throw 'ack...';
+	someWarning(msg, true);
+	throw 'ack...';
 }
 
 var pendingInputs = [];
 
 function emulationTick() {
-    var doneThisFrame = 0;
-    while(pendingInputs.length > 30 && doneThisFrame++ < 2) {
-        currentInput = pendingInputs.shift();
-        vbam_js_main();
-        currentFrame++;
-    }
-    drawFrame();
-    requestAnimationFrame(emulationTick);
-    //setTimeout(emulationTick, 1000);
+	var doneThisFrame = 0;
+	while(pendingInputs.length > 30 && doneThisFrame++ < 2) {
+		currentInput = pendingInputs.shift();
+		vbam_js_main();
+		currentFrame++;
+	}
+	drawFrame();
+	requestAnimationFrame(emulationTick);
+	//setTimeout(emulationTick, 1000);
 }
 
 currentVote = 0;
 
 function keyCodeToMask(code) {
-    switch(code) {
-    case 13: // DOM_VK_RETURN
-        return 8; // start
-    case 90: // DOM_VK_Z
-        return 1; // A
-    case 88: // DOM_VK_X
-        return 2; // B
-    case 87: // DOM_VK_W
-    case 38: // DOM_VK_UP
-        return 64; // up
-    case 65: // DOM_VK_A
-    case 37: // DOM_VK_LEFT
-        return 32; // left
-    case 83: // DOM_VK_S
-    case 40: // DOM_VK_DOWN
-        return 128; // down
-    case 68: // DOM_VK_D
-    case 39: // DOM_VK_RIGHT
-        return 16; // right
-    case 73: // DOM_VK_I
-        return 512; // L
-    case 79: // DOM_VK_O
-        return 256; // R
-    case 80: // DOM_VK_P
-        return 4; // select
-    }
-    return 0;
+	switch(code) {
+	case 13: // DOM_VK_RETURN
+		return 8; // start
+	case 90: // DOM_VK_Z
+		return 1; // A
+	case 88: // DOM_VK_X
+		return 2; // B
+	case 87: // DOM_VK_W
+	case 38: // DOM_VK_UP
+		return 64; // up
+	case 65: // DOM_VK_A
+	case 37: // DOM_VK_LEFT
+		return 32; // left
+	case 83: // DOM_VK_S
+	case 40: // DOM_VK_DOWN
+		return 128; // down
+	case 68: // DOM_VK_D
+	case 39: // DOM_VK_RIGHT
+		return 16; // right
+	case 73: // DOM_VK_I
+		return 512; // L
+	case 79: // DOM_VK_O
+		return 256; // R
+	case 80: // DOM_VK_P
+		return 4; // select
+	}
+	return 0;
 }
 
 function updateVote(vote) {
-    currentVote = vote;
-    var data = new DataView(new ArrayBuffer(3));
-    data.setUint8(0, REQ_SET_VOTE);
-    data.setUint16(1, vote, true);
-    ws.send(data.buffer);
+	currentVote = vote;
+	var data = new DataView(new ArrayBuffer(3));
+	data.setUint8(0, REQ_SET_VOTE);
+	data.setUint16(1, vote, true);
+	ws.send(data.buffer);
 }
 
 function startEmulation() {
-    window.onkeydown = function(e) {
-        var mask = keyCodeToMask(e.keyCode);
-        if(mask) {
-            updateVote(currentVote | mask);
-            return false;
-        }
-    };
-    window.onkeyup = function(e) {
-        var mask = keyCodeToMask(e.keyCode);
-        if(mask) {
-            updateVote(currentVote & ~mask);
-            return false;
-        }
-    }
+	window.onkeydown = function(e) {
+		var mask = keyCodeToMask(e.keyCode);
+		if(mask) {
+			updateVote(currentVote | mask);
+			return false;
+		}
+	};
+	window.onkeyup = function(e) {
+		var mask = keyCodeToMask(e.keyCode);
+		if(mask) {
+			updateVote(currentVote & ~mask);
+			return false;
+		}
+	}
 
-    if(isSafari) {
-        someWarning('Note: This page will run faster in Firefox and Chrome than Safari.');
-    }
+	if(isSafari) {
+		someWarning('Note: This page will run faster in Firefox and Chrome than Safari.');
+	}
 
-    emulationTick();
+	emulationTick();
+}
+
+var stats = document.getElementById('stats');
+var popularitySpans = [];
+for(var i = 0; i < 11; i++) {
+	var div = document.createElement('span');
+	stats.appendChild(div);
+	popularitySpans.push(div);
+}
+var populationSpan = popularitySpans.shift();
+
+function voteToText(vote) {
+	if(vote == 0)
+		return '▢';
 }
 
 function connectToSocket() {
-    ws = new WebSocket('ws://' + location.hostname + ':4321/keyserver', 'keyserver');
-    ws.binaryType = 'arraybuffer';
-    ws.onopen = function() {
-        console.log('WS open');
+	ws = new WebSocket('ws://' + location.hostname + ':4321/keyserver', 'keyserver');
+	ws.binaryType = 'arraybuffer';
+	ws.onopen = function() {
+		console.log('WS open');
 		var data = new DataView(new ArrayBuffer(9));
 		data.setUint8(0, REQ_GIMME_SINCE);
 		data.setUint32(1, currentFrame, true);
 		data.setUint32(5, currentFrame / 0x100000000, true);
 		ws.send(data.buffer);
-    }
-    ws.onmessage = function(e) {
-        var msg = new Uint8Array(e.data);
+	}
+	ws.onmessage = function(e) {
+		var msg = new Uint8Array(e.data);
 		var dv = new DataView(msg.buffer);
 		if(msg[0] == RES_HERES_YOUR_STUFF) {
 			console.log('startup got ' + (msg.length - 1)/2 + ' frames');
 			for(var i = 1; i < msg.length; i += 2)
-                pendingInputs.push(dv.getUint16(i, true));
-            startEmulation();
+				pendingInputs.push(dv.getUint16(i, true));
+			startEmulation();
 		} else if(msg[0] == RES_BATCH) {
 			var offset = 1;
 			var frame = dv.getUint32(offset, true) + dv.getUint32(offset + 4, true) * 0x100000000;
@@ -235,130 +264,139 @@ function connectToSocket() {
 				offset += 2;
 				frame++;
 			}
-			// ignore popularity data
+
+			populationSpan.textContent = numPlayers;
+			for(var i = 0; i < popularitySpans.length && offset < msg.length; i++, offset += 6) {
+				var vote = dv.getUint16(offset, true);
+				var popularity = dv.getUint32(offset + 2, true);
+				popularitySpans[i].textContent = voteToText(vote);
+			}
+			for(; i < popularitySpans.length; i++)
+				popularitySpans[i].textContent = '';
+
 		}
-    }
-    ws.onclose = function(e) {
-        someError('WebSocket connection failed.');
-    }
-    ws.onerror = function(e) {
-        someError('WebSocket error?');
-    }
+	}
+	ws.onclose = function(e) {
+		someError('WebSocket connection failed.');
+	}
+	ws.onerror = function(e) {
+		someError('WebSocket error?');
+	}
 }
 
 function loadSave() {
-    loadURL('saves/current.sgm', function(state) {
-        var buf = Module._malloc(state.byteLength);
-        Module.HEAPU8.set(new Uint8Array(state), buf);
-        var length = state.byteLength - 12;
-        console.log(length);
-        var i = (buf + length)/4;
-        var id = Module.HEAPU32[i];
-        var frameLo = Module.HEAPU32[i+1];
-        var frameHi = Module.HEAPU32[i+2];
-        if(id != 0xfeedfeed)
-            someError('Invalid state file');
-        currentFrame = frameLo + (frameHi * 0x100000000);
-        if(!vbam_js_load_state(buf, length))
-            someError('Load state failed');
-        Module._free(buf);
-        connectToSocket();
-    }, function() {
-        console.log('No state...');
-        currentFrame = 0;
-        connectToSocket();
-    });
+	loadURL('saves/current.sgm', function(state) {
+		var buf = Module._malloc(state.byteLength);
+		Module.HEAPU8.set(new Uint8Array(state), buf);
+		var length = state.byteLength - 12;
+		console.log(length);
+		var i = (buf + length)/4;
+		var id = Module.HEAPU32[i];
+		var frameLo = Module.HEAPU32[i+1];
+		var frameHi = Module.HEAPU32[i+2];
+		if(id != 0xfeedfeed)
+			someError('Invalid state file');
+		currentFrame = frameLo + (frameHi * 0x100000000);
+		if(!vbam_js_load_state(buf, length))
+			someError('Load state failed');
+		Module._free(buf);
+		connectToSocket();
+	}, function() {
+		console.log('No state...');
+		currentFrame = 0;
+		connectToSocket();
+	});
 }
 
 function loadingPhase1() {
-    if(romData && vbamReady) {
-        //someError('My name is BIRCH.');
-        vbam_js_init('rom.gba');
-        loadSave();
-    }
+	if(romData && vbamReady) {
+		//someError('My name is BIRCH.');
+		vbam_js_init('rom.gba');
+		loadSave();
+	}
 }
 
 function loadURL(url, callback, error) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url);
-    xhr.responseType = 'arraybuffer';
+	var xhr = new XMLHttpRequest();
+	xhr.open('GET', url);
+	xhr.responseType = 'arraybuffer';
 
-    function err() {
-        xhr.onload = null;
-        xhr.onerror = null;
-        error();
-    }
-    xhr.onload = function() {
-        if(xhr.status == 200)
-            callback(xhr.response) 
-        else
-            err();
-    };
-    xhr.onerror = err;
-    xhr.send();
+	function err() {
+		xhr.onload = null;
+		xhr.onerror = null;
+		error();
+	}
+	xhr.onload = function() {
+		if(xhr.status == 200)
+			callback(xhr.response) 
+		else
+			err();
+	};
+	xhr.onerror = err;
+	xhr.send();
 }
 
 loadURL('rom.gba', function(buf) {
-    romData = buf;
-    loadingPhase1();
+	romData = buf;
+	loadingPhase1();
 }, function() { someError("Couldn't load ROM"); });
 
 function vsysReadJoypad(which) {
-    return currentInput;
+	return currentInput;
 }
 
 function vsysGetExternalFile(file, resultPtr, sizePtr) {
-    var fn = Module.Pointer_stringify(file);
-    console.log(fn);
-    var size = romData.byteLength;
-    var buf = Module.HEAPU32[resultPtr/4] || Module._malloc(size);
-    Module.HEAPU8.set(new Uint8Array(romData), buf);
-    Module.HEAPU32[resultPtr/4] = buf;
-    Module.HEAPU32[sizePtr/4] = size;
+	var fn = Module.Pointer_stringify(file);
+	console.log(fn);
+	var size = romData.byteLength;
+	var buf = Module.HEAPU32[resultPtr/4] || Module._malloc(size);
+	Module.HEAPU8.set(new Uint8Array(romData), buf);
+	Module.HEAPU32[resultPtr/4] = buf;
+	Module.HEAPU32[sizePtr/4] = size;
 }
 
 
 function vsysInitSound() {
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    try {
-        audioContext = new AudioContext();
-    } catch(e) {
-        throw 'no audio API support';
-    }
+	window.AudioContext = window.AudioContext || window.webkitAudioContext;
+	try {
+		audioContext = new AudioContext();
+	} catch(e) {
+		throw 'no audio API support';
+	}
 
-    heapS16 = new Int16Array(Module.HEAPU16.buffer);
+	heapS16 = new Int16Array(Module.HEAPU16.buffer);
 
-    return audioContext.sampleRate;
+	return audioContext.sampleRate;
 }
 
 soundNextTime = 0;
 
 function vsysWriteSound(buf, length) {
-    var samples = length >> 2;
-    var source = audioContext.createBufferSource();
-    // waste of time
-    var buffer = audioContext.createBuffer(2, samples, audioContext.sampleRate);
-    var l = buffer.getChannelData(0);
-    var r = buffer.getChannelData(1);
-    //console.log(length, h16[buf], h16[buf+1], h16[buf+2], h16[buf+3]);
-    var h16 = heapS16;
-    for(var i = 0, p = buf/2; i < samples; i++, p += 2) {
-        l[i] = h16[p] / 0x8000;
-        r[i] = h16[p + 1] / 0x8000;
-    }
-    source.buffer = buffer;
-    source.onended = function() {
-        source.disconnect();
-    }
-    source.connect(audioContext.destination);
-    var time = soundNextTime;
-    if(time < audioContext.currentTime - 0.1 ||
-       time > audioContext.currentTime + 1) {
-        console.log('Resetting...' + (time - audioContext.currentTime));
-        time = audioContext.currentTime + 0.2;
-    }
-    source.start(time);
-    soundNextTime = time + samples / audioContext.sampleRate;
+	var samples = length >> 2;
+	var source = audioContext.createBufferSource();
+	// waste of time
+	var buffer = audioContext.createBuffer(2, samples, audioContext.sampleRate);
+	var l = buffer.getChannelData(0);
+	var r = buffer.getChannelData(1);
+	//console.log(length, h16[buf], h16[buf+1], h16[buf+2], h16[buf+3]);
+	var h16 = heapS16;
+	for(var i = 0, p = buf/2; i < samples; i++, p += 2) {
+		l[i] = h16[p] / 0x8000;
+		r[i] = h16[p + 1] / 0x8000;
+	}
+	source.buffer = buffer;
+	source.onended = function() {
+		source.disconnect();
+	}
+	source.connect(audioContext.destination);
+	var time = soundNextTime;
+	if(time < audioContext.currentTime - 0.1 ||
+	   time > audioContext.currentTime + 1) {
+		console.log('Resetting...' + (time - audioContext.currentTime));
+		time = audioContext.currentTime + 0.2;
+	}
+	source.start(time);
+	soundNextTime = time + samples / audioContext.sampleRate;
 }
 
 scale = 2;
@@ -366,66 +404,66 @@ scale = 2;
 scaleInCanvas = true;//!!window.chrome;
 
 function vsysInitGraphics(width, height, pix) {
-    // Confused yet?
-    var realWidth = width - 1;
-    var realHeight = height - 2;
-    cvs = document.getElementById('canvas');
-    c2d = cvs.getContext('2d');
-    var bspr = c2d.webkitBackingStorePixelRatio || c2d.backingStorePixelRatio || 1;
-    if(scaleInCanvas) {
-        cvs.width = realWidth / bspr * scale;
-        cvs.height = realHeight / bspr * scale;
-    } else {
-        cvs.width = realWidth / bspr;
-        cvs.height = realHeight / bspr;
-    }
-    if(scale != 1 && scaleInCanvas) {
-        tempCvs = document.createElement('canvas');
-        tempCvs.width = realWidth;
-        tempCvs.height = realHeight;
-        tempC2d = tempCvs.getContext('2d');
-        c2d.scale(scale * bspr, scale * bspr);
-        c2d.mozImageSmoothingEnabled = false;
-        c2d.webkitImageSmoothingEnabled = false;
-        c2d.imageSmoothingEnabled = false;
-    } else {
-        tempC2d = c2d;
-    }
-    imageData = (c2d.webkitCreateImageDataHD || c2d.createImageDataHD || c2d.createImageData).call(c2d, width, height);
-    imagePix = new Uint8Array(Module.HEAPU8.buffer, pix, 4*width*height);
+	// Confused yet?
+	var realWidth = width - 1;
+	var realHeight = height - 2;
+	cvs = document.getElementById('canvas');
+	c2d = cvs.getContext('2d');
+	var bspr = c2d.webkitBackingStorePixelRatio || c2d.backingStorePixelRatio || 1;
+	if(scaleInCanvas) {
+		cvs.width = realWidth / bspr * scale;
+		cvs.height = realHeight / bspr * scale;
+	} else {
+		cvs.width = realWidth / bspr;
+		cvs.height = realHeight / bspr;
+	}
+	if(scale != 1 && scaleInCanvas) {
+		tempCvs = document.createElement('canvas');
+		tempCvs.width = realWidth;
+		tempCvs.height = realHeight;
+		tempC2d = tempCvs.getContext('2d');
+		c2d.scale(scale * bspr, scale * bspr);
+		c2d.mozImageSmoothingEnabled = false;
+		c2d.webkitImageSmoothingEnabled = false;
+		c2d.imageSmoothingEnabled = false;
+	} else {
+		tempC2d = c2d;
+	}
+	imageData = (c2d.webkitCreateImageDataHD || c2d.createImageDataHD || c2d.createImageData).call(c2d, width, height);
+	imagePix = new Uint8Array(Module.HEAPU8.buffer, pix, 4*width*height);
 }
 
 function drawFrame() {
-    //console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
-    imageData.data.set(imagePix);
-    (tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageDatfa).call(tempC2d, imageData, 0, -1);
-    if(scale != 1 && scaleInCanvas) {
-        c2d.drawImage(tempCvs, 0, 0);
-    }
+	//console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
+	imageData.data.set(imagePix);
+	(tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageDatfa).call(tempC2d, imageData, 0, -1);
+	if(scale != 1 && scaleInCanvas) {
+		c2d.drawImage(tempCvs, 0, 0);
+	}
 }
 
 function ready() {
-    vbam_js_init = Module.cwrap('vbam_js_init', 'void', ['string']);
-    vbam_js_main = Module.cwrap('vbam_js_main', 'void', []);
-    vbam_js_save_state = Module.cwrap('vbam_js_save_state', 'number', ['number', 'number']);
-    vbam_js_load_state = Module.cwrap('vbam_js_load_state', 'number', ['number', 'number']);
-    vbamReady = true;
-    loadingPhase1();
+	vbam_js_init = Module.cwrap('vbam_js_init', 'void', ['string']);
+	vbam_js_main = Module.cwrap('vbam_js_main', 'void', []);
+	vbam_js_save_state = Module.cwrap('vbam_js_save_state', 'number', ['number', 'number']);
+	vbam_js_load_state = Module.cwrap('vbam_js_load_state', 'number', ['number', 'number']);
+	vbamReady = true;
+	loadingPhase1();
 }
 
 var Module = {
-    preRun: [],
-    postRun: [ready],
-    print: function(text) {
-        console.log(text);
-    },
-    printErr: function(text) {
-        console.log(text);
-    },
-    setStatus: function(text) {
-        console.log(text);
-    },
-    TOTAL_MEMORY: 64*1024*1024,
+	preRun: [],
+	postRun: [ready],
+	print: function(text) {
+		console.log(text);
+	},
+	printErr: function(text) {
+		console.log(text);
+	},
+	setStatus: function(text) {
+		console.log(text);
+	},
+	TOTAL_MEMORY: 64*1024*1024,
 };
 </script>
 <script async type="text/javascript" src="vbam.js"></script>
