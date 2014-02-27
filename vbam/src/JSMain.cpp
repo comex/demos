@@ -152,6 +152,7 @@ void vbam_js_init(char *szFile) {
     //soundSetEnable(2);
     int rate = EM_ASM_INT(return vsysInitSound(), 42);
     soundSetSampleRate(rate);
+    rtcEnable(true);
 
     CPUInit("", false);
     CPUReset();

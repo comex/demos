@@ -16,7 +16,9 @@
 
 #include <libwebsockets.h>
 #define CMAKE_BUILD
+extern "C" {
 #include <private-libwebsockets.h> // derp
+}
 
 #define NO_VOTE 0xffff
 #define UNVOTE_DELAY (60*5)
@@ -119,13 +121,8 @@ static void set_running(bool running) {
 }
 
 
-static void disconnect_player(player_data *pl) {
-	printf("disconnect_player %p\n", pl);
-	close(pl->fd);
-}
-
-
 static void set_vote(player_data *pl, uint16_t vote) {
+	printf("%p: %x\n", pl, vote);
 	if(vote == pl->vote)
 		return;
 	if(pl->vote != NO_VOTE) {
@@ -133,8 +130,9 @@ static void set_vote(player_data *pl, uint16_t vote) {
 			g_popularity.erase(pl->vote);
 	}
 	if(vote == NO_VOTE) {
-		std::swap(g_voting_players[pl->voting_players_idx], g_voting_players[--g_voting_players_count]);
-		g_voting_players.resize(g_voting_players_count);
+		player_data *pl = g_voting_players.back();
+		g_voting_players.pop_back();
+		g_voting_players[pl->voting_players_idx] = pl;
 	} else {
 		g_voting_players.push_back(pl);
 		g_popularity[vote]++;
@@ -147,9 +145,9 @@ static void set_vote(player_data *pl, uint16_t vote) {
 }
 
 static uint16_t get_input() {
-	if(g_voting_players_count == 0)
+	if(g_voting_players.size() == 0)
 		return 0;
-	std::uniform_int_distribution<size_t> distr(0, g_voting_players_count - 1);
+	std::uniform_int_distribution<size_t> distr(0, g_voting_players.size() - 1);
 	size_t lucky = distr(g_rand);
 	return g_voting_players[lucky]->vote;
 }
@@ -168,14 +166,36 @@ static void inc_frame() {
 	}
 }
 
+static void kill_player(player_data *pl) {
+	if(pl->wsi) {
+		pl->wsi = NULL;
+		if(!pl->magic)
+			g_num_players--;
+	}
+}
+
+static inline void pre_write(player_data *pl) {
+	// derp
+	if(pl->magic)
+		fcntl(pl->fd, F_SETFL, 0);
+}
+static inline void post_write(player_data *pl) {
+	if(pl->magic)
+		fcntl(pl->fd, F_SETFL, O_NONBLOCK);
+}
+
 static void scattershot_packet(void *packet, size_t len) {
 	// In the /extremely/ unlikely case that this becomes TPP-level popular,
 	// this is actually going to be eating most of the CPU just popping between
 	// userland and kernelland and poking TCP queues.  Whatever.  If I double
 	// the batch rate it will almost certainly be OK, so...
-	std::future<void> f[4];
+	std::future<void> f[WORKERS];
+	std::mutex blargh_lock;
+	std::vector<player_data *> blargh;
 	for(int i = 0; i < WORKERS; i++) {
-		f[i] = std::async(std::launch::async, [=] {
+		f[i] = std::async(std::launch::async, [i, len, packet, &blargh_lock, &blargh] {
+			uint8_t *mypacket = get_packet(len);
+			memcpy(mypacket, packet, len);
 			for(size_t j = i; j < g_players.size(); j += WORKERS) {
 				player_data *pl = &g_players[j];
 				libwebsocket *wsi = pl->wsi;
@@ -185,14 +205,24 @@ static void scattershot_packet(void *packet, size_t len) {
 				// LWS_CALLBACK_SERVER_WRITEABLE or on multiple threads.  But
 				// it doesn't actually matter (if you don't mind sometimes
 				// rudely disconnecting people).
-				int ret = libwebsocket_write(wsi, (unsigned char *) packet, len, LWS_WRITE_BINARY);
-				if(ret != len)
-					disconnect_player(pl);
+				pre_write(pl);
+				int ret = libwebsocket_write(wsi, (unsigned char *) mypacket, len, LWS_WRITE_BINARY);
+				post_write(pl);
+				if(ret != len) {
+					printf("polvio'ing %p because %d/%zu\n", pl, ret, len);
+					std::lock_guard<std::mutex> lk(blargh_lock);
+					blargh.push_back(pl);
+				}
 			}
+			un_packet(mypacket);
 		});
 	}
 	for(int i = 0; i < WORKERS; i++)
 		f[i].wait();
+	for(player_data *pl : blargh) {
+		libwebsocket_close_and_free_session(g_lws_ctx, pl->wsi, LWS_CLOSE_STATUS_POLICY_VIOLATION);
+		kill_player(pl);
+	}
 }
 
 static void add_to_history(uint16_t input) {
@@ -288,14 +318,11 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 			uint8_t *packet = get_packet(outlen);
 			packet[0] = RES_HERES_YOUR_STUFF;
 			memcpy(&packet[1], g_history.data() + since, frames * sizeof(uint16_t));
-			// derp
-			if(pl->magic)
-				fcntl(wsi->sock, F_SETFL, 0);
+			pre_write(pl);
 			int ret = libwebsocket_write(wsi, packet, outlen, LWS_WRITE_BINARY);
-			if(pl->magic)
-				fcntl(wsi->sock, F_SETFL, O_NONBLOCK);
+			post_write(pl);
 			if(ret != outlen)
-				disconnect_player(pl);
+				BAD();
 			un_packet(packet);
 			pl->ready = true;
 		} else if(req == REQ_SET_VOTE) {
@@ -313,9 +340,7 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 	}
 	case LWS_CALLBACK_CLOSED: {
 		player_data *pl = &g_players.at(wsi->sock);
-		pl->wsi = NULL;
-		if(!pl->magic)
-			g_num_players--;
+		kill_player(pl);
 		break;
 	}
 	default:
@@ -371,7 +396,7 @@ int main() {
 				.name = "keyserver",
 				.callback = keyserver_callback,
 				.per_session_data_size = 0,
-				.rx_buffer_size = 16
+				.rx_buffer_size = 4096
 			},
 		},
 		.gid = -1,

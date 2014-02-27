@@ -55,6 +55,64 @@ function emulationTick() {
     //setTimeout(emulationTick, 1000);
 }
 
+currentVote = 0;
+
+function keyCodeToMask(code) {
+    switch(code) {
+    case 13: // DOM_VK_RETURN
+        return 8; // start
+    case 90: // DOM_VK_Z
+        return 1; // A
+    case 88: // DOM_VK_X
+        return 2; // B
+    case 87: // DOM_VK_W
+    case 38: // DOM_VK_UP
+        return 64; // up
+    case 65: // DOM_VK_A
+    case 37: // DOM_VK_LEFT
+        return 32; // left
+    case 83: // DOM_VK_S
+    case 40: // DOM_VK_DOWN
+        return 128; // down
+    case 68: // DOM_VK_D
+    case 39: // DOM_VK_RIGHT
+        return 16; // right
+    case 73: // DOM_VK_I
+        return 512; // L
+    case 79: // DOM_VK_O
+        return 256; // R
+    case 80: // DOM_VK_P
+        return 4; // select
+    }
+    return 0;
+}
+
+function updateVote(vote) {
+    currentVote = vote;
+    var data = new DataView(new ArrayBuffer(3));
+    data.setUint8(0, REQ_SET_VOTE);
+    data.setUint16(1, vote, true);
+    ws.send(data.buffer);
+}
+
+function startEmulation() {
+    window.onkeydown = function(e) {
+        var mask = keyCodeToMask(e.keyCode);
+        if(mask) {
+            updateVote(currentVote | mask);
+            return false;
+        }
+    };
+    window.onkeyup = function(e) {
+        var mask = keyCodeToMask(e.keyCode);
+        if(mask) {
+            updateVote(currentVote & ~mask);
+            return false;
+        }
+    }
+    emulationTick();
+}
+
 function connectToSocket() {
     ws = new WebSocket('ws://' + location.hostname + ':4321/keyserver', 'keyserver');
     ws.binaryType = 'arraybuffer';
@@ -73,7 +131,7 @@ function connectToSocket() {
 			console.log('startup got ' + (msg.length - 1)/2 + ' frames');
 			for(var i = 1; i < msg.length; i += 2)
                 pendingInputs.push(dv.getUint16(i, true));
-            emulationTick();
+            startEmulation();
 		} else if(msg[0] == RES_BATCH) {
 			var offset = 1;
 			var frame = dv.getUint32(offset, true) + dv.getUint32(offset + 4, true) * 0x100000000;
