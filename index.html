@@ -21,7 +21,7 @@ body {
 
 #stats {
 	width: 482px;
-	height: 30px;
+	height: 20px;
 	padding-top: 20px;
 }
 
@@ -230,7 +230,29 @@ var populationSpan = popularitySpans.shift();
 
 function voteToText(vote) {
 	if(vote == 0)
-		return '▢';
+		return '\ue000';
+	var s = '';
+	if(vote & 1)
+		s += 'A';
+	if(vote & 2)
+		s += 'B';
+	if(vote & 4)
+		s += 'Sel';
+	if(vote & 8)
+		s += 'St';
+	if(vote & 16)
+		s += '\ue004';
+	if(vote & 32)
+		s += '\ue002';
+	if(vote & 64)
+		s += '\ue001';
+	if(vote & 128)
+		s += '\ue003';
+	if(vote & 512)
+		s += 'L';
+	if(vote & 256)
+		s += 'R';
+	return s;
 }
 
 function connectToSocket() {
