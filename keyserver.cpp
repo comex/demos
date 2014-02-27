@@ -291,12 +291,12 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 		socklen_t len = sizeof(sin);
 		bool is_magic = getpeername(fd, (struct sockaddr *) &sin, &len) != -1 &&
 			ntohl(sin.sin_addr.s_addr) == 0x7f000001;
-		g_players[fd] = (player_data) {
-			.wsi = wsi,
-			.fd = fd,
-			.pid = g_next_pid++,
-			.magic = is_magic,
-		};
+		player_data *pl = &g_players[fd];
+		*pl = player_data();
+		pl->wsi = wsi;
+		pl->fd = fd;
+		pl->pid = g_next_pid++;
+		pl->magic = is_magic;
 		if(!is_magic)
 			g_num_players++;
 		break;
@@ -389,20 +389,24 @@ int main() {
 
 	printf("starting from frame %lld\n", g_frame);
 
-	g_lws_ctx = libwebsocket_create_context((lws_context_creation_info[]) {{
-		.port = 4321,
-		.iface = NULL,
-		.protocols = (libwebsocket_protocols[]) {
-			{
-				.name = "keyserver",
-				.callback = keyserver_callback,
-				.per_session_data_size = 0,
-				.rx_buffer_size = 4096
-			},
-		},
-		.gid = -1,
-		.uid = -1
-	}});
+	libwebsocket_protocols pi;
+	memset(&pi, 0, sizeof(pi));
+	pi.name = "keyserver";
+	pi.callback = keyserver_callback;
+	pi.per_session_data_size = 0;
+	pi.rx_buffer_size = 4096;
+
+	lws_context_creation_info ci;
+	memset(&ci, 0, sizeof(ci));
+	ci.port = 4321;
+	ci.iface = NULL;
+	ci.gid = -1;
+	ci.uid = -1;
+	ci.protocols = &pi;
+
+	g_lws_ctx = libwebsocket_create_context(&ci);
+
+
 #if USE_EPOLL
 	g_epoll_fd = epoll_create(1);
 #endif
