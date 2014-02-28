@@ -84,6 +84,8 @@ static size_t g_voting_players_count;
 static std::vector<uint16_t> g_history;
 static int g_history_fd;
 
+struct player_data *g_mr_headless;
+
 #if USE_EPOLL
 static int g_epoll_fd;
 #endif
@@ -147,6 +149,10 @@ static uint16_t get_input() {
 }
 
 static void kill_player(player_data *pl) {
+	if(pl == g_mr_headless) {
+		g_mr_headless = NULL;
+		set_running(false);
+	}
 	if(pl->wsi) {
 		set_vote(pl, NO_VOTE);
 		pl->wsi = NULL;
@@ -313,6 +319,7 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 			if(len != 2)
 				BAD();
 			set_running(buf[1]);
+			g_mr_headless = pl;
 		} else {
 			BAD();
 		}
