@@ -34,7 +34,7 @@ body {
 
 #stats span {
 	font-size: 16px;
-	width: 55px;
+	width: 52px;
 	display: inline-block;
 	height: 21px;
 	vertical-align: top;
@@ -58,6 +58,11 @@ body {
 
 #my-vote {
 	color: blue;
+}
+
+#time {
+	text-align: right;
+	width: 95px !important;
 }
 
 #css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
@@ -171,6 +176,8 @@ body {
 				<div id="my-vote-label">VOTE</div>
 				<span id="my-vote"></span>
 			</span>
+			<span id="time">
+			</span>
 		</div>
 		<div id="container">
 			<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
@@ -279,6 +286,28 @@ setInterval(checkHash, 500);
 
 var pendingInputs = [];
 
+function incFrame() {
+	currentFrame++;
+	if(currentFrame % 60 == 0) {
+		var x = currentFrame / 60;
+		var s = x % 60; x = (x / 60)|0;
+		var m = x % 60; x = (x / 60)|0;
+		var h = x % 24; x = (x / 24)|0;
+		var d = x;
+		var text = s + 's';
+		if(m) {
+			text = m + 'm' + text;
+			if(h) {
+				text = h + 'h' + text;
+				if(d) {
+					text = d + 'd' + text;
+				}
+			}
+		}
+		timeSpan.textContent = text;
+	}
+}
+
 function emulationTick() {
 	var doneThisFrame = 0;
 	if(pendingInputs.length > 60*20 && !didError)
@@ -286,7 +315,7 @@ function emulationTick() {
 	while(pendingInputs.length > 10 && doneThisFrame++ < 2) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
-		currentFrame++;
+		incFrame();
 	}
 	drawFrame();
 	requestAnimationFrame(emulationTick);
@@ -378,15 +407,16 @@ function startEmulation() {
 }
 
 var stats = document.getElementById('stats');
-var popularitySpans = [];
-for(var i = 0; i < 6; i++) {
-	var div = document.createElement('span');
-	stats.appendChild(div);
-	popularitySpans.push(div);
-}
 var populationSpan = document.getElementById('popularity');
 var myVoteSpan = document.getElementById('my-vote');
 var myVoteLabel = document.getElementById('my-vote-label');
+var timeSpan = document.getElementById('time');
+var popularitySpans = [];
+for(var i = 0; i < 5; i++) {
+	var div = document.createElement('span');
+	stats.insertBefore(div, timeSpan);
+	popularitySpans.push(div);
+}
 
 function voteToText(vote) {
 	if(vote == NO_VOTE)
