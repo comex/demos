@@ -27,13 +27,36 @@ body {
 
 #stats {
 	width: 482px;
-	height: 20px;
+	height: 21px;
 	padding-top: 20px;
 }
 
 #stats span {
 	font-size: 18px;
-	margin-right: 40px;
+	width: 55px;
+	display: inline-block;
+	height: 21px;
+	vertical-align: top;
+}
+
+#popularity {
+	width: 65px !important;
+}
+
+#my-vote-container {
+	position: relative;
+}
+
+#my-vote-label {
+	position: absolute;
+	font-size: 8px;
+	top: -3px;
+	color: blue;
+	visibility: hidden;
+}
+
+#my-vote {
+	color: blue;
 }
 
 #css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
@@ -88,13 +111,13 @@ body {
 	image-rendering: pixelated;
 }
 
-#description {
+#desc, #more {
 	border-radius: 2px;
 	border: 1px solid #888;
 	background-color: #fff8f8;
 	font-size: 12px;
 	padding: 4px;
-
+	display: none;
 }
 
 .tab {
@@ -110,8 +133,16 @@ body {
 	color: #888;
 }
 
-.tabsel {
+#tabs.descsel #descbutton,
+#tabs.moresel #morebutton,
+#tabs.chatsel #chatbutton {
 	color: black;
+}
+
+#tabs.descsel #desc,
+#tabs.moresel #more,
+#tabs.chatsel #chat {
+	display: block;
 }
 
 #chat {
@@ -125,6 +156,11 @@ body {
 <div id="everything">
 	<div id="emu-big-box">
 		<div id="stats">
+			<span id="popularity"></span>
+			<span id="my-vote-container">
+				<div id="my-vote-label">VOTE</div>
+				<span id="my-vote"></span>
+			</span>
 		</div>
 		<div id="container">
 			<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
@@ -139,18 +175,27 @@ body {
 		</div>
 	</div>
 
-	<div id="buttons">
-		<a id="descbutton" class="tab tabsel" href="#">About</a>
-		<a id="chatbutton" class="tab" href="#">Chat</a>
-	</div>
+	<div id="tabs" class="descsel">
+		<div id="buttons">
+			<a id="descbutton" class="tab" href="#" onclick="sel('desc')">About</a>
+			<a id="morebutton" class="tab" href="#" onclick="sel('more')">More</a>
+			<a id="chatbutton" class="tab" href="#" onclick="sel('chat')">Chat</a>
+		</div>
 
-	<div id="description">
-		Some text...<br>
-		Some text...<br>
-		Some text...<br>
-	</div>
+		<div id="desc">
+			Some text...<br>
+			Some text...<br>
+			Some text...<br>
+		</div>
 
-	<iframe id="chat" src="http://chat.efnet.org:9090/?channels=htmlplayspokemon"></iframe>
+		<div id="more">
+			More text...<br>
+			More text...<br>
+			More text...<br>
+		</div>
+
+		<iframe id="chat" src="http://chat.efnet.org:9090/?channels=htmlplayspokemon"></iframe>
+	</div>
 </div>
 </body>
 <script type='text/javascript'>
@@ -200,13 +245,17 @@ function someError(msg) {
 	throw 'ack...';
 }
 
+function sel(tab) {
+	document.getElementById('tabs').className = tab + 'sel';
+}
+
 var pendingInputs = [];
 
 function emulationTick() {
 	var doneThisFrame = 0;
 	if(pendingInputs.length > 60*20 && !didError)
 		someWarning('Emulation too far behind...', true);
-	while(pendingInputs.length > 30 && doneThisFrame++ < 2) {
+	while(pendingInputs.length > 10 && doneThisFrame++ < 2) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
 		currentFrame++;
@@ -242,32 +291,53 @@ function keyCodeToMask(code) {
 		return 512; // L
 	case 79: // DOM_VK_O
 		return 256; // R
+	/*
 	case 80: // DOM_VK_P
 		return 4; // select
+	*/
+	case 81: // DOM_VK_Q
+		return 0x8000; // explicit nothing
 	}
 	return 0;
 }
 
+var unvoteTimeout = null;
+var NO_VOTE = 0xffff;
+
 function updateVote(vote) {
-	currentVote = vote;
+	currentVote = vote == NO_VOTE ? NO_VOTE : (vote & ~0x8000);
 	var data = new DataView(new ArrayBuffer(3));
 	data.setUint8(0, REQ_SET_VOTE);
-	data.setUint16(1, vote, true);
+	data.setUint16(1, currentVote, true);
 	ws.send(data.buffer);
+
+	var text = voteToText(vote);
+	myVoteSpan.textContent = text;
+	//myVoteLabel.style.visibility = text.length ? 'visible' : 'hidden';
+
+	if(vote != NO_VOTE) {
+		if(unvoteTimeout) {
+			clearTimeout(unvoteTimeout);
+			unvoteTimeout = null;
+		}
+		if(vote == 0) {
+			unvoteTimeout = setTimeout(function() { updateVote(NO_VOTE); }, 1000);
+		}
+	}
 }
 
 function startEmulation() {
 	window.onkeydown = function(e) {
 		var mask = keyCodeToMask(e.keyCode);
 		if(mask) {
-			updateVote(currentVote | mask);
+			updateVote(currentVote == NO_VOTE ? mask : (currentVote | mask));
 			return false;
 		}
 	};
 	window.onkeyup = function(e) {
 		var mask = keyCodeToMask(e.keyCode);
 		if(mask) {
-			updateVote(currentVote & ~mask);
+			updateVote(currentVote == NO_VOTE ? NO_VOTE : (currentVote & ~mask));
 			return false;
 		}
 	}
@@ -281,14 +351,18 @@ function startEmulation() {
 
 var stats = document.getElementById('stats');
 var popularitySpans = [];
-for(var i = 0; i < 11; i++) {
+for(var i = 0; i < 6; i++) {
 	var div = document.createElement('span');
 	stats.appendChild(div);
 	popularitySpans.push(div);
 }
-var populationSpan = popularitySpans.shift();
+var populationSpan = document.getElementById('popularity');
+var myVoteSpan = document.getElementById('my-vote');
+var myVoteLabel = document.getElementById('my-vote-label');
 
 function voteToText(vote) {
+	if(vote == NO_VOTE)
+		return '';
 	if(vote == 0)
 		return '\ue000';
 	var s = '';
@@ -296,8 +370,10 @@ function voteToText(vote) {
 		s += 'a';
 	if(vote & 2)
 		s += 'b';
+	/*
 	if(vote & 4)
 		s += 'Sel';
+	*/
 	if(vote & 8)
 		s += 'St';
 	if(vote & 16)
@@ -316,6 +392,7 @@ function voteToText(vote) {
 }
 
 function connectToSocket() {
+	console.log('connecting, currentFrame: ' + currentFrame);
 	ws = new WebSocket('ws://' + location.hostname + ':4321/keyserver', 'keyserver');
 	ws.binaryType = 'arraybuffer';
 	ws.onopen = function() {
@@ -523,7 +600,7 @@ function vsysInitGraphics(width, height, pix) {
 function drawFrame() {
 	//console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
 	imageData.data.set(imagePix);
-	(tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageDatfa).call(tempC2d, imageData, 0, -1);
+	(tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageData).call(tempC2d, imageData, 0, -1);
 	if(scale != 1 && scaleInCanvas) {
 		c2d.drawImage(tempCvs, 0, 0);
 	}

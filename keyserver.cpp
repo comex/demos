@@ -1,6 +1,6 @@
 #include <vector>
 #include <deque>
-#include <unordered_map>
+#include <map>
 #include <stdint.h>
 #include <random>
 #include <future>
@@ -24,7 +24,7 @@ extern "C" {
 #define UNVOTE_DELAY (60*5)
 #define BATCH_SIZE 10
 #define WORKERS 4
-#define MAX_POPULARITY 10
+#define MAX_POPULARITY 6
 
 struct player_data {
 	libwebsocket *wsi;
@@ -35,12 +35,6 @@ struct player_data {
 	size_t voting_players_idx;
 	uint16_t vote;
 	uint64_t vote_frame;
-};
-
-struct queued_event {
-	uint64_t frame;
-	int fd;
-	uint64_t pid;
 };
 
 enum {
@@ -77,7 +71,7 @@ static uint64_t g_next_pid;
 static uint64_t g_frame;
 static uint64_t g_next_frame_time;
 
-static std::unordered_map<uint16_t, size_t> g_popularity;
+static std::map<uint16_t, size_t> g_popularity;
 
 static std::vector<player_data> g_players;
 static size_t g_num_players;
@@ -86,8 +80,6 @@ static std::mutex g_conn_mtx;
 // oh, why not
 static std::vector<player_data *> g_voting_players;
 static size_t g_voting_players_count;
-
-static std::deque<queued_event> g_events;
 
 static std::vector<uint16_t> g_history;
 static int g_history_fd;
@@ -122,6 +114,8 @@ static void set_running(bool running) {
 
 
 static void set_vote(player_data *pl, uint16_t vote) {
+	if(vote != NO_VOTE)
+		vote &= ~4; // no select for you
 	if(vote == pl->vote)
 		return;
 	if(pl->vote != NO_VOTE) {
@@ -142,9 +136,6 @@ static void set_vote(player_data *pl, uint16_t vote) {
 	}
 	pl->vote = vote;
 	pl->vote_frame = g_frame;
-	if(vote == 0) { // release
-		g_events.push_back(queued_event{g_frame + UNVOTE_DELAY, pl->fd, pl->pid});
-	}
 }
 
 static uint16_t get_input() {
@@ -153,20 +144,6 @@ static uint16_t get_input() {
 	std::uniform_int_distribution<size_t> distr(0, g_voting_players.size() - 1);
 	size_t lucky = distr(g_rand);
 	return g_voting_players[lucky]->vote;
-}
-
-static void inc_frame() {
-	g_frame++;
-	while(g_events.size() > 0 && g_frame >= g_events.front().frame) {
-		queued_event *ev = &g_events.front();
-		if(ev->fd < g_players.size()) {
-			player_data *pl = &g_players[ev->fd];
-			if(pl->pid == ev->pid && g_frame == pl->vote_frame + UNVOTE_DELAY) {
-				set_vote(pl, NO_VOTE);
-			}
-		}
-		g_events.pop_front();
-	}
 }
 
 static void kill_player(player_data *pl) {
@@ -237,8 +214,8 @@ static void add_to_history(uint16_t input) {
 static void do_frame() {
 	uint16_t input = get_input();
 	add_to_history(input);
-	inc_frame();
-	
+	g_frame++;
+
 	if(g_frame % 60 == 0)
 		printf("f %llu\n", g_frame);
 
@@ -257,12 +234,10 @@ static void do_frame() {
 		bp->num_inputs = num_inputs;
 		auto inputs = (uint16_t *) &bp[1];
 		memcpy(inputs, g_history.data() + (g_frame - num_inputs), num_inputs * sizeof(uint16_t));
-		size_t i = 0;
 		auto popcnt_data = (popularity_packet *) &inputs[num_inputs];
-		for(auto it : g_popularity) {
-			popcnt_data[i++] = {it.first, (uint32_t) it.second};
-			if(i == MAX_POPULARITY) break;
-		}
+		size_t i = 0;
+		for(auto it = g_popularity.rbegin(); it != g_popularity.rend() && i < MAX_POPULARITY; ++it, i++)
+			popcnt_data[i] = {it->first, (uint32_t) it->second};
 		scattershot_packet(packet, len);
 		un_packet(packet);
 	}
