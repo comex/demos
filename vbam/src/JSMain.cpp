@@ -13,6 +13,7 @@
 #include "common/SoundDriver.h"
 #include "System.h"
 #include "Util.h"
+#include "gba/GBAcpu.h" // for fake
 #include <emscripten/emscripten.h>
 #include <time.h>
 #include <stdarg.h>
@@ -168,6 +169,15 @@ void vbam_js_init(char *szFile) {
 
   utilUpdateSystemColorMaps();
   EM_ASM_INT(vsysInitGraphics($0, $1, $2), srcWidth + 1, srcHeight + 2, pix);
+
+#if 0
+  fprintf(stderr, "--> FAKE IN\n");
+  for(int i = 0; i < 500000; i++) {
+    thumbExecute(true);
+    armExecute(true);
+  }
+  fprintf(stderr, "--> FAKE OUT\n");
+#endif
 }
 
 EMSCRIPTEN_KEEPALIVE

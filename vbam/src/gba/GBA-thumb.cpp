@@ -2289,8 +2289,11 @@ static insnfunc_t thumbInsnTable[1024] = {
 
 // Wrapper routine (execution loop) ///////////////////////////////////////
 
-int thumbExecute()
+int thumbExecute(bool fake)
 {
+  if(fake) {
+      return 0;
+  }
   do {
 	  if( cheatsEnabled ) {
 		  cpuMasterCodeCheck();
@@ -2317,7 +2320,14 @@ int thumbExecute()
     reg[15].I += 2;
     THUMB_PREFETCH_NEXT;
 
-    (*thumbInsnTable[opcode>>6])(opcode);
+    int idx = opcode >> 6;
+#ifdef USE_SWITCH
+    switch(idx) {
+#include "switch-thumb.gen.h"
+    }
+#else
+    (*thumbInsnTable[idx])(opcode);
+#endif
 
     if (clockTicks < 0)
       return 0;

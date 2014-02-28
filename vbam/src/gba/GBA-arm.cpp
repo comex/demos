@@ -2863,8 +2863,11 @@ static void tester(void) {
 }
 #endif
 
-int armExecute()
+int armExecute(bool fake)
 {
+    if(fake) {
+        return 0;
+    }
     do {
 		if( cheatsEnabled ) {
 			cpuMasterCodeCheck();
@@ -2950,8 +2953,16 @@ int armExecute()
             }
         }
 
-        if (cond_res)
-            (*armInsnTable[((opcode>>16)&0xFF0) | ((opcode>>4)&0x0F)])(opcode);
+        if (cond_res) {
+            int idx = ((opcode>>16)&0xFF0) | ((opcode>>4)&0x0F);
+#ifdef USE_SWITCH
+            switch(idx) {
+#include "switch-arm.gen.h"
+            }
+#else
+            (*armInsnTable[idx])(opcode);
+#endif
+        }
 #ifdef INSN_COUNTER
         count(opcode, cond_res);
 #endif

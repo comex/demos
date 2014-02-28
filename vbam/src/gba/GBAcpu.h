@@ -1,8 +1,10 @@
 #ifndef GBACPU_H
 #define GBACPU_H
 
-extern int armExecute();
-extern int thumbExecute();
+extern int armExecute(bool fake = false);
+extern int thumbExecute(bool fake = false);
+
+//#define USE_SWITCH
 
 #ifdef __GNUC__
 #if !defined(__APPLE__) && !JS
@@ -16,6 +18,11 @@ extern int thumbExecute();
 # define INSN_REGPARM /*nothing*/
 # define LIKELY(x) (x)
 # define UNLIKELY(x) (x)
+#endif
+
+#ifdef USE_SWITCH
+#undef INSN_REGPARM
+#define INSN_REGPARM __attribute__((always_inline))
 #endif
 
 #define UPDATE_REG(address, value)\
