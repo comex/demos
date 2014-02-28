@@ -116,11 +116,18 @@ body {
 	border: 1px solid #888;
 	background-color: #fff8f8;
 	font-size: 14px;
+	padding: 4px;
+	display: none;
+}
+
+#desc {
 	text-shadow:
 		1px 0px rgb(239, 238, 231),
 		1px 1px rgb(239, 238, 231);
-	padding: 4px;
-	display: none;
+}
+
+#more {
+	font-family: Helvetica, Arial;
 }
 
 .tab {
@@ -136,13 +143,13 @@ body {
 	font-size: 16px;
 }
 
-#tabs.descsel #descbutton,
+#tabs.sel #descbutton,
 #tabs.moresel #morebutton,
 #tabs.chatsel #chatbutton {
 	color: black;
 }
 
-#tabs.descsel #desc,
+#tabs.sel #desc,
 #tabs.moresel #more,
 #tabs.chatsel #chat {
 	display: block;
@@ -178,26 +185,25 @@ body {
 		</div>
 	</div>
 
-	<div id="tabs" class="descsel">
+	<div id="tabs" class="sel">
 		<div id="buttons">
-			<a id="descbutton" class="tab" href="#" onclick="sel('desc')">About</a>
-			<a id="morebutton" class="tab" href="#" onclick="sel('more')">More</a>
-			<a id="chatbutton" class="tab" href="#" onclick="sel('chat')">Chat</a>
+			<a id="descbutton" class="tab" href="#" onclick="return sel('')">About</a>
+			<a id="morebutton" class="tab" href="#" onclick="return sel('more')">More</a>
+			<a id="chatbutton" class="tab" href="#" onclick="return sel('chat')">Chat</a>
 		</div>
 
 		<div id="desc">
 			<div style="font-size: 20px">HTML Plays Pokémon</div>
-			Like Twitch Plays Pokemon, but with much less lag. &nbsp;Instead of 20-40 seconds, more like half a second.<br>
-			No need to type in chat! &nbsp;Choose a key by To choose a 
-
-			Some text...<br>
-			Some text...<br>
-			Some text...<br>
+			Like Twitch Plays Pokemon, but with much less lag:<br>
+			half a second rather than 20-40 seconds.<br>
+			No need to type in chat! &nbsp;Choose a key by holding down:<br>
+			A: z &nbsp;&nbsp;B: x &nbsp;&nbsp;L: i &nbsp;&nbsp;R: o &nbsp;&nbsp;Start: &nbsp;Enter &nbsp;&nbsp;&nbsp;WASD or arrows&nbsp;&nbsp;
 		</div>
 
 		<div id="more">
 			More text...<br>
 			More text...<br>
+			Made by <a href="http://twitter.com/comex">@comex</a>.<br>
 			More text...<br>
 		</div>
 
@@ -252,9 +258,24 @@ function someError(msg) {
 	throw 'ack...';
 }
 
+var currentTab = '';
+
 function sel(tab) {
 	document.getElementById('tabs').className = tab + 'sel';
+	currentTab = tab;
+	window.location.hash = tab;
+	return false;
 }
+
+function checkHash() {
+	var hash = window.location.hash.replace('#', '');
+	if(hash != currentTab) {
+		console.log(hash + ' != ' + currentTab, window.location.hash);
+		sel(hash);
+	}
+}
+checkHash();
+setInterval(checkHash, 500);
 
 var pendingInputs = [];
 
