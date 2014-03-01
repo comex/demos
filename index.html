@@ -259,6 +259,7 @@ function someWarning(msg, isFatal) {
 }
 
 var isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+var isIE = /Trident/.test(navigator.userAgent);
 
 function someError(msg) {
 	someWarning(msg, true);
@@ -583,7 +584,9 @@ function vsysInitSound() {
 	try {
 		audioContext = new AudioContext();
 	} catch(e) {
-		throw 'no audio API support';
+		audioContext = null;
+		someWarning('No Web Audio support.\nTry Firefox or Chrome for audio.');
+		return 44100;
 	}
 
 	heapS16 = new Int16Array(Module.HEAPU16.buffer);
@@ -594,6 +597,8 @@ function vsysInitSound() {
 soundNextTime = 0;
 
 function vsysWriteSound(buf, length) {
+	if(!audioContext)
+		return;
 	var samples = length >> 2;
 	var source = audioContext.createBufferSource();
 	// waste of time
@@ -657,7 +662,14 @@ function vsysInitGraphics(width, height, pix) {
 
 function drawFrame() {
 	//console.log(imagePix[0], imagePix[1], imagePix[2], imagePix[3]);
-	imageData.data.set(imagePix);
+	var data = imageData.data;
+	if(data.set) {
+		data.set(imagePix);
+	} else {
+		var l = imageData.width * imageData.height * 4;
+		for(var i = 0; i < l; i++)
+			data[i] = imagePix[i];
+	}
 	(tempC2d.webkitPutImageDataHD || tempC2d.putImageDataHD || tempC2d.putImageData).call(tempC2d, imageData, 0, -1);
 	if(scale != 1 && scaleInCanvas) {
 		c2d.drawImage(tempCvs, 0, 0);
