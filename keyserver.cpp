@@ -140,6 +140,7 @@ static void set_vote(player_data *pl, uint16_t vote) {
 			opl->voting_players_idx = pl->voting_players_idx;
 			g_voting_players[opl->voting_players_idx] = fd;
 		}
+		pl->voting_players_idx = 0x8888888888888888ull;
 	} else if(pl->vote == NO_VOTE) {
 		pl->voting_players_idx = g_voting_players.size();
 		g_voting_players.push_back(pl->fd);
@@ -153,7 +154,15 @@ static uint16_t get_input() {
 		return 0;
 	std::uniform_int_distribution<size_t> distr(0, g_voting_players.size() - 1);
 	size_t lucky = distr(g_rand);
-	return g_players[g_voting_players[lucky]].vote;
+	int fd = g_voting_players[lucky];
+	uint16_t vote = g_players[fd].vote;
+	if(vote == NO_VOTE) {
+		fprintf(stderr, "I am a bad programmer? (%d)\n", fd);
+		g_players[fd].vote = 0;
+		set_vote(&g_players[fd], NO_VOTE);
+		vote = 0;
+	}
+	return vote;
 }
 
 static void kill_player(player_data *pl) {
@@ -278,6 +287,10 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 		bool is_magic = getpeername(fd, (struct sockaddr *) &sin, &len) != -1 &&
 			ntohl(sin.sin_addr.s_addr) == 0x7f000001;
 		player_data *pl = &g_players[fd];
+		if(pl->wsi) {
+			fprintf(stderr, "Duplicate player?\n");
+			kill_player(pl);
+		}
 		*pl = player_data();
 		pl->wsi = wsi;
 		pl->fd = fd;
