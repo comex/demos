@@ -666,12 +666,12 @@ function vsysGetExternalFile(file, resultPtr, sizePtr) {
 }
 
 var volumePips = [];
-var volumeScale = 2;
+var volumeScale = 2.5;
 
 function setVolume(frac) {
 	frac = Math.max(Math.min(frac, 1), 0);
 	for(var i = 0; i < volumePips.length; i++)
-		volumePips[i].className = (i / volumePips.length) <= frac ? 'set' : '';
+		volumePips[i].className = (i / volumePips.length) < frac ? 'set' : '';
 
 	gainNode.gain.setValueAtTime(frac * volumeScale, audioContext.currentTime);
 	window.localStorage['volume'] = frac;
@@ -693,7 +693,7 @@ function initVolume() {
 			baseX += el.offsetLeft;
 			el = el.offsetParent;
 		}
-		setVolume((e.clientX - baseX) / 30);
+		setVolume((e.clientX - (baseX + 5)) / 25);
 	};
 	gainNode = audioContext.createGain();
 	gainNode.connect(audioContext.destination);
