@@ -374,9 +374,8 @@ function emulationTick() {
 	} else {
 		limit = 1;
 	}
-	console.log(avgPending, limit);
 	var doneThisFrame = 0;
-	while(doneThisFrame++ < limit) {
+	while(pending > 0 && doneThisFrame++ < limit) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
 		incFrame();

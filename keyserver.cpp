@@ -233,10 +233,10 @@ static void add_to_history(uint16_t input) {
 
 static void do_clump() {
 	g_last_input = get_input();
-	for(int i = 0; i < CLUMP_SIZE; i++) {
+	do {
 		add_to_history(g_last_input);
 		g_frame++;
-	}
+	} while(g_frame % CLUMP_SIZE != 0);
 
 	if(g_frame % 60 == 0)
 		printf("f %llu\n", (unsigned long long) g_frame);
