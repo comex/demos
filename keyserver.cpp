@@ -297,6 +297,7 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 		pl->pid = g_next_pid++;
 		pl->magic = is_magic;
 		pl->vote = NO_VOTE;
+		pl->voting_players_idx = 0x8888888888888888ull;
 		if(!is_magic)
 			g_num_players++;
 		break;

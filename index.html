@@ -65,19 +65,34 @@ body {
 	width: 95px !important;
 }
 
-#css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
+.css-is-impressively-bad-and-flexbox-isnt-flexibly-supported {
 	position: absolute;
 	display: table;
 	width: 100%;
 	height: 100%;
 }
 
-#sub {
+.sub {
 	display: table-cell;
 	vertical-align: middle;
 	padding-left: 50%;
 
 }
+
+#progress {
+	width: 200px;
+	height: 15px;
+	border: 2px solid #ddd;
+	margin-left: -100px;
+	display: none;
+}
+
+#progress-so-far {
+	background-color: #ddd;
+	width: 40px;
+	height: 100%;
+}
+
 #warning {
 	font-size: 16px;
 	color: red;/*rgb(72, 72,7 2);*/
@@ -204,8 +219,15 @@ body {
 			</span>
 		</div>
 		<div id="container">
-			<div id="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
-				<div id="sub">
+			<div class="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
+				<div class="sub">
+					<div id="progress">
+						<div id="progress-so-far"></div>
+					</div>
+				</div>
+			</div>
+			<div class="css-is-impressively-bad-and-flexbox-isnt-flexibly-supported">
+				<div class="sub">
 					<div id="warning">
 						<div id="warning-text">Warn warn warn</div>
 						<div id="ok">OK</div>
@@ -338,7 +360,7 @@ function emulationTick() {
 	var doneThisFrame = 0;
 	if(pendingInputs.length > 60*20 && !didError)
 		someWarning('Emulation too far behind...', true);
-	while(pendingInputs.length > 10 && doneThisFrame++ < 2) {
+	while(pendingInputs.length > 10 && doneThisFrame++ < 3) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
 		incFrame();
@@ -354,6 +376,7 @@ function keyCodeToMask(code) {
 	switch(code) {
 		case 13: // DOM_VK_RETURN
 			return 8; // start
+		case 89: // DOM_VK_Y
 		case 90: // DOM_VK_Z
 			return 1; // A
 		case 88: // DOM_VK_X
@@ -567,23 +590,44 @@ function loadingPhase1() {
 	}
 }
 
+var progressDiv = document.getElementById('progress');
+var progressSoFarDiv = document.getElementById('progress-so-far');
+
+function setProgress(prog) {
+	progressSoFarDiv.style.width = (prog * 200) + 'px';
+}
+
 function loadURL(url, callback, error) {
+	var timeout = setTimeout(function() {
+		timeout = null;
+		progressDiv.style.display = 'block';
+	}, 200);
+	setProgress(0);
+
 	var xhr = new XMLHttpRequest();
 	xhr.open('GET', url);
 	xhr.responseType = 'arraybuffer';
 
-	function err() {
+	function done(good) {
 		xhr.onload = null;
 		xhr.onerror = null;
-		error();
-	}
-	xhr.onload = function() {
-		if(xhr.status == 200)
+		progressDiv.style.display = 'none';
+		if(timeout !== null)
+			clearTimeout(timeout);
+		if(good)
 			callback(xhr.response) 
 		else
-			err();
+			error();
+	}
+	xhr.onload = function() {
+		done(xhr.status == 200);
 	};
-	xhr.onerror = err;
+	xhr.onerror = function() {
+		done(false);
+	};
+	xhr.onprogress = function(e) {
+		setProgress(e.loaded / (e.lengthComputable ? e.total : 16*1024*1024));
+	};
 	xhr.send();
 }
 
@@ -658,7 +702,7 @@ function vsysInitSound() {
 
 	heapS16 = new Int16Array(Module.HEAPU16.buffer);
 
-	return audioContext.sampleRate;
+	return sampleRate = Math.min(audioContext.sampleRate, 44100);
 }
 
 soundNextTime = 0;
@@ -669,7 +713,7 @@ function vsysWriteSound(buf, length) {
 	var samples = length >> 2;
 	var source = audioContext.createBufferSource();
 	// waste of time
-	var buffer = audioContext.createBuffer(2, samples, audioContext.sampleRate);
+	var buffer = audioContext.createBuffer(2, samples, sampleRate);
 	var l = buffer.getChannelData(0);
 	var r = buffer.getChannelData(1);
 	//console.log(length, h16[buf], h16[buf+1], h16[buf+2], h16[buf+3]);
@@ -690,7 +734,7 @@ function vsysWriteSound(buf, length) {
 		time = audioContext.currentTime + 0.2;
 	}
 	source.start(time);
-	soundNextTime = time + samples / audioContext.sampleRate;
+	soundNextTime = time + samples / sampleRate;
 }
 
 var muted = false;
