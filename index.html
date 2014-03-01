@@ -612,6 +612,7 @@ function setVolume(frac) {
 		volumePips[i].className = (i / volumePips.length) <= frac ? 'set' : '';
 
 	gainNode.gain.setValueAtTime(frac * volumeScale, audioContext.currentTime);
+	window.localStorage['volume'] = frac;
 }
 
 function initVolume() {
@@ -634,7 +635,10 @@ function initVolume() {
 	};
 	gainNode = audioContext.createGain();
 	gainNode.connect(audioContext.destination);
-	setVolume(1 / volumeScale);
+	var volume = window.localStorage['volume'];
+	if(typeof(volume) == 'undefined')
+		volume = 1 / volumeScale;
+	setVolume(volume);
 }
 
 function vsysInitSound() {
