@@ -7,8 +7,10 @@
 #include <mutex>
 #include <algorithm>
 #include <stdlib.h>
+#include <thread>
+#include <dispatch/dispatch.h>
 
-#define USE_EPOLL !__APPLE__
+#define USE_EPOLL 0
 
 #if USE_EPOLL
 #include <sys/epoll.h>
@@ -90,7 +92,10 @@ struct player_data *g_mr_headless;
 static int g_epoll_fd;
 #endif
 
+std::mutex g_blargh_lock;
+
 #define please(x) do { if((x) == -1) fprintf(stderr, "%s failed: %s\n", #x, strerror(errno)); } while(0)
+#define please_eq(x, y) do { if((x) != (y)) fprintf(stderr, "%s failed: %s\n", #x, strerror(errno)); } while(0)
 
 static uint8_t *get_packet(size_t size) {
 	return (uint8_t *) malloc(LWS_SEND_BUFFER_PRE_PADDING + size + LWS_SEND_BUFFER_POST_PADDING) + LWS_SEND_BUFFER_PRE_PADDING;
@@ -176,36 +181,30 @@ static void scattershot_packet(void *packet, size_t len) {
 	// this is actually going to be eating most of the CPU just popping between
 	// userland and kernelland and poking TCP queues.  Whatever.  If I double
 	// the batch rate it will almost certainly be OK, so...
-	std::future<void> f[WORKERS];
-	std::mutex blargh_lock;
-	std::vector<player_data *> blargh;
-	for(int i = 0; i < WORKERS; i++) {
-		f[i] = std::async(std::launch::async, [i, len, packet, &blargh_lock, &blargh] {
-			uint8_t *mypacket = get_packet(len);
-			memcpy(mypacket, packet, len);
-			for(size_t j = i; j < g_players.size(); j += WORKERS) {
-				player_data *pl = &g_players[j];
-				libwebsocket *wsi = pl->wsi;
-				if(!wsi || !pl->ready)
-					continue;
-				// Note: Docs say not to do this outside of
-				// LWS_CALLBACK_SERVER_WRITEABLE or on multiple threads.  But
-				// it doesn't actually matter (if you don't mind sometimes
-				// rudely disconnecting people).
-				pre_write(pl);
-				int ret = libwebsocket_write(wsi, (unsigned char *) mypacket, len, LWS_WRITE_BINARY);
-				post_write(pl);
-				if(ret != len) {
-					printf("polvio'ing %p because %d/%zu\n", pl, ret, len);
-					std::lock_guard<std::mutex> lk(blargh_lock);
-					blargh.push_back(pl);
-				}
+	__block std::vector<player_data *> blargh;
+	dispatch_apply(WORKERS, dispatch_get_global_queue(2, 0), ^(size_t i) {
+		uint8_t *mypacket = get_packet(len);
+		memcpy(mypacket, packet, len);
+		for(size_t j = i; j < g_players.size(); j += WORKERS) {
+			player_data *pl = &g_players[j];
+			libwebsocket *wsi = pl->wsi;
+			if(!wsi || !pl->ready)
+				continue;
+			// Note: Docs say not to do this outside of
+			// LWS_CALLBACK_SERVER_WRITEABLE or on multiple threads.  But
+			// it doesn't actually matter (if you don't mind sometimes
+			// rudely disconnecting people).
+			pre_write(pl);
+			int ret = libwebsocket_write(wsi, (unsigned char *) mypacket, len, LWS_WRITE_BINARY);
+			post_write(pl);
+			if(ret != len) {
+				printf("polvio'ing %p because %d/%zu\n", pl, ret, len);
+				std::lock_guard<std::mutex> lk(g_blargh_lock);
+				blargh.push_back(pl);
 			}
-			un_packet(mypacket);
-		});
-	}
-	for(int i = 0; i < WORKERS; i++)
-		f[i].wait();
+		}
+		un_packet(mypacket);
+	});
 	for(player_data *pl : blargh) {
 		libwebsocket_close_and_free_session(g_lws_ctx, pl->wsi, LWS_CLOSE_STATUS_POLICY_VIOLATION);
 		kill_player(pl);
@@ -214,7 +213,7 @@ static void scattershot_packet(void *packet, size_t len) {
 
 static void add_to_history(uint16_t input) {
 	g_history.push_back(input);
-	write(g_history_fd, &input, sizeof(input));
+	please_eq(write(g_history_fd, &input, sizeof(input)), 2);
 }
 
 static void do_frame() {
@@ -223,7 +222,7 @@ static void do_frame() {
 	g_frame++;
 
 	if(g_frame % 60 == 0)
-		printf("f %llu\n", g_frame);
+		printf("f %llu\n", (unsigned long long) g_frame);
 
 	if(g_frame % BATCH_SIZE == 0) {
 		size_t num_inputs = BATCH_SIZE;
@@ -373,7 +372,7 @@ int main() {
 		g_frame += n;
 	}
 
-	printf("starting from frame %lld\n", g_frame);
+	printf("starting from frame %llu\n", (unsigned long long) g_frame);
 
 	libwebsocket_protocols pi;
 	memset(&pi, 0, sizeof(pi));
