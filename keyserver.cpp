@@ -24,8 +24,8 @@ extern "C" {
 
 #define NO_VOTE 0xffff
 #define UNVOTE_DELAY (60*5)
-#define BATCH_SIZE 20
-#define SELECT_DELAY 20
+#define BATCH_SIZE 15
+#define CLUMP_SIZE 15
 #define WORKERS 4
 #define MAX_POPULARITY 6
 
@@ -72,7 +72,7 @@ static bool g_running;
 static uint64_t g_next_pid;
 
 static uint64_t g_frame;
-static uint64_t g_next_frame_time;
+static uint64_t g_next_clump_time;
 
 static std::map<uint16_t, size_t> g_popularity;
 
@@ -117,7 +117,7 @@ static uint64_t get_time() {
 static void set_running(bool running) {
 	printf("running <- %d\n", running);
 	if(running && !g_running) {
-		g_next_frame_time = get_time();
+		g_next_clump_time = get_time();
 	}
 	g_running = running;
 }
@@ -231,12 +231,12 @@ static void add_to_history(uint16_t input) {
 	please_eq(write(g_history_fd, &input, sizeof(input)), 2);
 }
 
-static void do_frame() {
-	// this is derp but probably doesn't matter
-	if(g_frame % SELECT_DELAY == 0)
-		g_last_input = get_input();
-	add_to_history(g_last_input);
-	g_frame++;
+static void do_clump() {
+	g_last_input = get_input();
+	for(int i = 0; i < CLUMP_SIZE; i++) {
+		add_to_history(g_last_input);
+		g_frame++;
+	}
 
 	if(g_frame % 60 == 0)
 		printf("f %llu\n", (unsigned long long) g_frame);
@@ -421,13 +421,13 @@ int main() {
 		serve();
 		if(g_running) {
 			uint64_t now = get_time();
-			if(now >= g_next_frame_time) {
-				do_frame();
-				if(now - g_next_frame_time >= 300000) {
+			if(now >= g_next_clump_time) {
+				do_clump();
+				if(now - g_next_clump_time >= 500000) {
 					// we've fallen behind...
-					g_next_frame_time = now;
+					g_next_clump_time = now;
 				}
-				g_next_frame_time += (1000000/60);
+				g_next_clump_time += CLUMP_SIZE * 1000000 /60;
 			}
 		}
 	}

@@ -356,12 +356,27 @@ function incFrame() {
 	}
 }
 
+var avgPending = 0;
+
 function emulationTick() {
-	var doneThisFrame = 0;
-	if(pendingInputs.length > 60*20 && !didError)
+	var pending = pendingInputs.length;
+	if(pending > 60*20 && !didError)
 		someWarning('Emulation too far behind...', true);
-	var limit = pendingInputs.length > 60 ? 3 : 1;
-	while(pendingInputs.length > 20 && doneThisFrame++ < limit) {
+	avgPending = (avgPending + pending * (1/60)) / (1 + (1/60));
+
+	var limit;
+	if(pending > 40) {
+		limit = 3;
+	} else if(avgPending < 5) {
+		limit = Math.random() < 0.5 ? 0 : 1;
+	} else if(avgPending > 15) {
+		limit = Math.random() < 0.5 ? 1 : 2;
+	} else {
+		limit = 1;
+	}
+	console.log(avgPending, limit);
+	var doneThisFrame = 0;
+	while(doneThisFrame++ < limit) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
 		incFrame();
@@ -552,7 +567,7 @@ function connectToSocket() {
 		}
 	}
 	ws.onclose = function(e) {
-		someError('WebSocket connection failed.');
+		someError('WebSocket connection failed.\nStream might be restarting/down.');
 	}
 	ws.onerror = function(e) {
 		someError('WebSocket error?');
