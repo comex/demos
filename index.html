@@ -169,6 +169,10 @@ body {
 	margin-right: -8px;
 }
 
+#volume * {
+	cursor: pointer;
+}
+
 #volume > div {
 	width: 3px;
 	background-color: grey;
@@ -217,8 +221,7 @@ body {
 			<a id="descbutton" class="tab" href="#" onclick="return sel('')">About</a>
 			<a id="morebutton" class="tab" href="#" onclick="return sel('more')">More</a>
 			<a id="chatbutton" class="tab" href="#" onclick="return sel('chat')">Chat</a>
-			<div id="volume">
-			</div>
+			<div id="volume"></div>
 		</div>
 
 		<div id="desc">
@@ -613,6 +616,7 @@ function setVolume(frac) {
 
 function initVolume() {
 	var volume = document.getElementById('volume');
+	volume.textContent = 'Vol ';
 	var count = 10;
 	for(var i = 0; i < count; i++) {
 		var pip = document.createElement('div');
@@ -621,12 +625,12 @@ function initVolume() {
 		volumePips.push(pip);
 	}
 	volume.onclick = function(e) {
-		var el = volume, baseX = 0;
+		var el = volumePips[0], baseX = 0;
 		while(el) {
 			baseX += el.offsetLeft;
 			el = el.offsetParent;
 		}
-		setVolume((e.clientX - (baseX + 8)) / 30);
+		setVolume((e.clientX - baseX) / 30);
 	};
 	gainNode = audioContext.createGain();
 	gainNode.connect(audioContext.destination);
