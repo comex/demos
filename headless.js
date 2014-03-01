@@ -58,7 +58,7 @@ function initVbam() {
 
 	romData = new Uint8Array(fs.readFileSync('rom.gba'));
 	vbam_js_init('rom.gba');
-	currentFrame = 0;
+	pendingFrame = currentFrame = 0;
 	lastSavedFrame = -10000;
 }
 
@@ -113,8 +113,10 @@ function initSock() {
 		var dv = new DataView(msg.buffer);
 		if(msg[0] == RES_HERES_YOUR_STUFF) {
 			console.log('startup got ' + (msg.length - 1)/2 + ' frames');
-			for(var i = 1; i < msg.length; i += 2)
+			for(var i = 1; i < msg.length; i += 2) {
 				pumpFrame(dv.getUint16(i, true));
+				pendingFrame++;
+			}
 
 			setRunning(1);
 		} else if(msg[0] == RES_BATCH) {
@@ -130,8 +132,10 @@ function initSock() {
 				wasPaused = true;
 			}
 			for(var i = 0; i < numInputs; i++) {
-				if(frame >= currentFrame)
+				if(frame >= pendingFrame) {
 					pendingInputs.push(dv.getUint16(offset, true));
+					pendingFrame++;
+				}
 				offset += 2;
 				frame++;
 			}
@@ -161,7 +165,7 @@ function loadState() {
 	var frameHi = Module.HEAPU32[i+2];
 	if(id != 0xfeedfeed)
 		throw 'Not a valid state.';
-	currentFrame = frameLo + (frameHi * 0x100000000);
+	pendingFrame = currentFrame = frameLo + (frameHi * 0x100000000);
 	if(!vbam_js_load_state(buf, length))
 		throw 'Load state failed!';
 	Module._free(buf);

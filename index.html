@@ -398,14 +398,13 @@ function updateVote(vote) {
 	myVoteSpan.textContent = text;
 	//myVoteLabel.style.visibility = text.length ? 'visible' : 'hidden';
 
+	if(unvoteTimeout !== null) {
+		clearTimeout(unvoteTimeout);
+		unvoteTimeout = null;
+	}
+
 	if(vote != NO_VOTE) {
-		if(unvoteTimeout) {
-			clearTimeout(unvoteTimeout);
-			unvoteTimeout = null;
-		}
-		if(vote == 0) {
-			unvoteTimeout = setTimeout(function() { updateVote(NO_VOTE); }, 1000);
-		}
+		unvoteTimeout = setTimeout(function() { updateVote(NO_VOTE); }, vote == 0 ? 1000 : 10000);
 	}
 }
 
@@ -492,8 +491,10 @@ function connectToSocket() {
 		var dv = new DataView(msg.buffer);
 		if(msg[0] == RES_HERES_YOUR_STUFF) {
 			console.log('startup got ' + (msg.length - 1)/2 + ' frames');
-			for(var i = 1; i < msg.length; i += 2)
+			for(var i = 1; i < msg.length; i += 2) {
 				pendingInputs.push(dv.getUint16(i, true));
+				pendingFrame++;
+			}
 			startEmulation();
 		} else if(msg[0] == RES_BATCH) {
 			var offset = 1;
@@ -502,8 +503,10 @@ function connectToSocket() {
 			var numPlayers = dv.getUint32(offset, true); offset += 4;
 			var numInputs = msg[offset++];
 			for(var i = 0; i < numInputs; i++) {
-				if(frame >= currentFrame)
+				if(frame >= pendingFrame) {
 					pendingInputs.push(dv.getUint16(offset, true));
+					pendingFrame++;
+				}
 				offset += 2;
 				frame++;
 			}
@@ -544,14 +547,14 @@ function loadSave() {
 		var frameHi = Module.HEAPU32[i+2];
 		if(id != 0xfeedfeed)
 			someError('Invalid state file');
-		currentFrame = frameLo + (frameHi * 0x100000000);
+		pendingFrame = currentFrame = frameLo + (frameHi * 0x100000000);
 		if(!vbam_js_load_state(buf, length))
 			someError('Load state failed');
 		Module._free(buf);
 		connectToSocket();
 	}, function() {
 		console.log('No state...');
-		currentFrame = 0;
+		pendingFrame = currentFrame = 0;
 		connectToSocket();
 	});
 }

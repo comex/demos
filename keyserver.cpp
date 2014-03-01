@@ -80,13 +80,13 @@ static size_t g_num_players;
 static std::mutex g_conn_mtx;
 
 // oh, why not
-static std::vector<player_data *> g_voting_players;
+static std::vector<int> g_voting_players;
 static size_t g_voting_players_count;
 
 static std::vector<uint16_t> g_history;
 static int g_history_fd;
 
-struct player_data *g_mr_headless;
+static int g_mr_headless = -1;
 
 #if USE_EPOLL
 static int g_epoll_fd;
@@ -133,13 +133,16 @@ static void set_vote(player_data *pl, uint16_t vote) {
 		g_popularity[vote]++;
 	}
 	if(vote == NO_VOTE) {
-		player_data *opl = g_voting_players.back();
+		int fd = g_voting_players.back();
 		g_voting_players.pop_back();
-		opl->voting_players_idx = pl->voting_players_idx;
-		g_voting_players[opl->voting_players_idx] = opl;
+		player_data *opl = &g_players[fd];
+		if(opl != pl) {
+			opl->voting_players_idx = pl->voting_players_idx;
+			g_voting_players[opl->voting_players_idx] = fd;
+		}
 	} else if(pl->vote == NO_VOTE) {
 		pl->voting_players_idx = g_voting_players.size();
-		g_voting_players.push_back(pl);
+		g_voting_players.push_back(pl->fd);
 	}
 	pl->vote = vote;
 	pl->vote_frame = g_frame;
@@ -150,12 +153,12 @@ static uint16_t get_input() {
 		return 0;
 	std::uniform_int_distribution<size_t> distr(0, g_voting_players.size() - 1);
 	size_t lucky = distr(g_rand);
-	return g_voting_players[lucky]->vote;
+	return g_players[g_voting_players[lucky]].vote;
 }
 
 static void kill_player(player_data *pl) {
-	if(pl == g_mr_headless) {
-		g_mr_headless = NULL;
+	if(pl->fd == g_mr_headless) {
+		g_mr_headless = -1;
 		set_running(false);
 	}
 	if(pl->wsi) {
@@ -318,7 +321,7 @@ static int keyserver_callback(struct libwebsocket_context *context, struct libwe
 			if(len != 2)
 				BAD();
 			set_running(buf[1]);
-			g_mr_headless = pl;
+			g_mr_headless = pl->fd;
 		} else {
 			BAD();
 		}
