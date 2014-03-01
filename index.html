@@ -360,7 +360,8 @@ function emulationTick() {
 	var doneThisFrame = 0;
 	if(pendingInputs.length > 60*20 && !didError)
 		someWarning('Emulation too far behind...', true);
-	while(pendingInputs.length > 10 && doneThisFrame++ < 3) {
+	var limit = pendingInputs.length > 60 ? 3 : 1;
+	while(pendingInputs.length > 20 && doneThisFrame++ < limit) {
 		currentInput = pendingInputs.shift();
 		vbam_js_main();
 		incFrame();

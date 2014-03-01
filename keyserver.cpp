@@ -24,7 +24,8 @@ extern "C" {
 
 #define NO_VOTE 0xffff
 #define UNVOTE_DELAY (60*5)
-#define BATCH_SIZE 10
+#define BATCH_SIZE 20
+#define SELECT_DELAY 20
 #define WORKERS 4
 #define MAX_POPULARITY 6
 
@@ -91,6 +92,8 @@ static int g_mr_headless = -1;
 #if USE_EPOLL
 static int g_epoll_fd;
 #endif
+
+static uint16_t g_last_input = 0;
 
 std::mutex g_blargh_lock;
 
@@ -229,8 +232,10 @@ static void add_to_history(uint16_t input) {
 }
 
 static void do_frame() {
-	uint16_t input = get_input();
-	add_to_history(input);
+	// this is derp but probably doesn't matter
+	if(g_frame % SELECT_DELAY == 0)
+		g_last_input = get_input();
+	add_to_history(g_last_input);
 	g_frame++;
 
 	if(g_frame % 60 == 0)
