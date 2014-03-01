@@ -160,6 +160,26 @@ body {
 	display: block;
 }
 
+#volume {
+	display: block;
+	float: right;
+	padding-top: 4px;
+	padding-left: 8px;
+	padding-right: 8px;
+	margin-right: -8px;
+}
+
+#volume > div {
+	width: 3px;
+	background-color: grey;
+	display: inline-block;
+	vertical-align: bottom;
+}
+
+#volume > div.set {
+	background-color: black;
+}
+
 #chat {
 	display: none;
 	border: 0;
@@ -197,6 +217,8 @@ body {
 			<a id="descbutton" class="tab" href="#" onclick="return sel('')">About</a>
 			<a id="morebutton" class="tab" href="#" onclick="return sel('more')">More</a>
 			<a id="chatbutton" class="tab" href="#" onclick="return sel('chat')">Chat</a>
+			<div id="volume">
+			</div>
 		</div>
 
 		<div id="desc">
@@ -578,6 +600,38 @@ function vsysGetExternalFile(file, resultPtr, sizePtr) {
 	Module.HEAPU32[sizePtr/4] = size;
 }
 
+var volumePips = [];
+var volumeScale = 2;
+
+function setVolume(frac) {
+	frac = Math.max(Math.min(frac, 1), 0);
+	for(var i = 0; i < volumePips.length; i++)
+		volumePips[i].className = (i / volumePips.length) <= frac ? 'set' : '';
+
+	gainNode.gain.setValueAtTime(frac * volumeScale, audioContext.currentTime);
+}
+
+function initVolume() {
+	var volume = document.getElementById('volume');
+	var count = 10;
+	for(var i = 0; i < count; i++) {
+		var pip = document.createElement('div');
+		pip.style.height = i / count * 28 + 4 + 'px';
+		volume.appendChild(pip);
+		volumePips.push(pip);
+	}
+	volume.onclick = function(e) {
+		var el = volume, baseX = 0;
+		while(el) {
+			baseX += el.offsetLeft;
+			el = el.offsetParent;
+		}
+		setVolume((e.clientX - (baseX + 8)) / 30);
+	};
+	gainNode = audioContext.createGain();
+	gainNode.connect(audioContext.destination);
+	setVolume(1 / volumeScale);
+}
 
 function vsysInitSound() {
 	window.AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -588,6 +642,8 @@ function vsysInitSound() {
 		someWarning('No Web Audio support.\nTry Firefox or Chrome for audio.');
 		return 44100;
 	}
+
+	initVolume();
 
 	heapS16 = new Int16Array(Module.HEAPU16.buffer);
 
@@ -615,7 +671,7 @@ function vsysWriteSound(buf, length) {
 	source.onended = function() {
 		source.disconnect();
 	}
-	source.connect(audioContext.destination);
+	source.connect(gainNode);
 	var time = soundNextTime;
 	if(time < audioContext.currentTime - 0.1 ||
 	   time > audioContext.currentTime + 1) {
@@ -624,6 +680,13 @@ function vsysWriteSound(buf, length) {
 	}
 	source.start(time);
 	soundNextTime = time + samples / audioContext.sampleRate;
+}
+
+var muted = false;
+
+function mute() {
+	muted = !muted;
+	document.getElementById('mute').className = muted ? 'muted' : '';
 }
 
 scale = 2;
