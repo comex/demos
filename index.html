@@ -368,9 +368,9 @@ function emulationTick() {
 	if(pending > 40) {
 		limit = 3;
 	} else if(avgPending < 5) {
-		limit = Math.random() < 0.5 ? 0 : 1;
+		limit = Math.random() < 0.85 ? 0 : 1;
 	} else if(avgPending > 15) {
-		limit = Math.random() < 0.5 ? 1 : 2;
+		limit = Math.random() < 0.85 ? 1 : 2;
 	} else {
 		limit = 1;
 	}
