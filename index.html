@@ -275,7 +275,7 @@ function someWarning(msg, isFatal) {
 		warning.style.transition = 'opacity 0.2s';
 		warning.style.opacity = 0;
 		if(isFatal) {
-			window.location = window.location;
+			location.reload();
 		}
 	}
 }
@@ -349,34 +349,34 @@ currentVote = 0;
 
 function keyCodeToMask(code) {
 	switch(code) {
-	case 13: // DOM_VK_RETURN
-		return 8; // start
-	case 90: // DOM_VK_Z
-		return 1; // A
-	case 88: // DOM_VK_X
-		return 2; // B
-	case 87: // DOM_VK_W
-	case 38: // DOM_VK_UP
-		return 64; // up
-	case 65: // DOM_VK_A
-	case 37: // DOM_VK_LEFT
-		return 32; // left
-	case 83: // DOM_VK_S
-	case 40: // DOM_VK_DOWN
-		return 128; // down
-	case 68: // DOM_VK_D
-	case 39: // DOM_VK_RIGHT
-		return 16; // right
-	case 73: // DOM_VK_I
-		return 512; // L
-	case 79: // DOM_VK_O
-		return 256; // R
-	/*
-	case 80: // DOM_VK_P
-		return 4; // select
-	*/
-	case 81: // DOM_VK_Q
-		return 0x8000; // explicit nothing
+		case 13: // DOM_VK_RETURN
+			return 8; // start
+		case 90: // DOM_VK_Z
+			return 1; // A
+		case 88: // DOM_VK_X
+			return 2; // B
+		case 87: // DOM_VK_W
+		case 38: // DOM_VK_UP
+			return 64; // up
+		case 65: // DOM_VK_A
+		case 37: // DOM_VK_LEFT
+			return 32; // left
+		case 83: // DOM_VK_S
+		case 40: // DOM_VK_DOWN
+			return 128; // down
+		case 68: // DOM_VK_D
+		case 39: // DOM_VK_RIGHT
+			return 16; // right
+		case 73: // DOM_VK_I
+			return 512; // L
+		case 79: // DOM_VK_O
+			return 256; // R
+			/*
+			   case 80: // DOM_VK_P
+			   return 4; // select
+			 */
+		case 81: // DOM_VK_Q
+			return 0x8000; // explicit nothing
 	}
 	return 0;
 }
@@ -452,9 +452,9 @@ function voteToText(vote) {
 	if(vote & 2)
 		s += 'b';
 	/*
-	if(vote & 4)
-		s += 'Sel';
-	*/
+	   if(vote & 4)
+	   s += 'Sel';
+	 */
 	if(vote & 8)
 		s += 'St';
 	if(vote & 16)
