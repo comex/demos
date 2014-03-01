@@ -374,12 +374,12 @@ int main() {
 
 	printf("starting from frame %llu\n", (unsigned long long) g_frame);
 
-	libwebsocket_protocols pi;
+	libwebsocket_protocols pi[2];
 	memset(&pi, 0, sizeof(pi));
-	pi.name = "keyserver";
-	pi.callback = keyserver_callback;
-	pi.per_session_data_size = 0;
-	pi.rx_buffer_size = 4096*4;
+	pi[0].name = "keyserver";
+	pi[0].callback = keyserver_callback;
+	pi[0].per_session_data_size = 0;
+	pi[0].rx_buffer_size = 4096*4;
 
 	lws_context_creation_info ci;
 	memset(&ci, 0, sizeof(ci));
@@ -387,7 +387,7 @@ int main() {
 	ci.iface = NULL;
 	ci.gid = -1;
 	ci.uid = -1;
-	ci.protocols = &pi;
+	ci.protocols = pi;
 
 	g_lws_ctx = libwebsocket_create_context(&ci);
 
