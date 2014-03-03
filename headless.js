@@ -180,11 +180,11 @@ function writeWithBackup(base, buf) {
 			var filename = base + '.' + i;
 			if(!fs.existsSync(filename)) {
 				fs.renameSync(base, filename);
-				return;
+				break;
 			}
 		}
 	}
-	fs.writeFileSync(filename, buf);
+	fs.writeFileSync(base, buf);
 }
 
 function saveState() {
