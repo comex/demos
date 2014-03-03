@@ -343,15 +343,12 @@ function incFrame() {
 		var h = x % 24; x = (x / 24)|0;
 		var d = x;
 		var text = s + 's';
-		if(m) {
+		if(m)
 			text = m + 'm' + text;
-			if(h) {
-				text = h + 'h' + text;
-				if(d) {
-					text = d + 'd' + text;
-				}
-			}
-		}
+		if(h)
+			text = h + 'h' + text;
+		if(d)
+			text = d + 'd' + text;
 		timeSpan.textContent = text;
 	}
 }
