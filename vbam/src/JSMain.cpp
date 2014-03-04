@@ -182,10 +182,10 @@ void vbam_js_init(char *szFile) {
 
 EMSCRIPTEN_KEEPALIVE
 void vbam_js_main() {
-  frameCount++;
   hadFrame = false;
   while (!hadFrame)
     emulator.emuMain(emulator.emuCount);
+  frameCount++;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -202,7 +202,10 @@ int vbam_js_save_state(char *mem, int size) {
 
 EMSCRIPTEN_KEEPALIVE
 bool vbam_js_load_state(char *mem, int size) {
-  return emulator.emuReadMemState(mem, size);
+  bool ok = emulator.emuReadMemState(mem, size);
+  frameCount = *(uint64_t *) (mem + size + 4);
+  fprintf(stderr, "VBAM frameCount: %llu\n", frameCount);
+  return ok;
 }
 
 } // extern
